@@ -1,0 +1,68 @@
+name = "noise-trading-engine"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Routes for dashboard (optional)
+routes = [
+  { pattern = "api/*", zone_name = "" }
+]
+
+# Analytics
+analytics_enabled = true
+
+# Logging
+logpush = true
+
+[env.development]
+name = "noise-trading-dev"
+vars = { ENVIRONMENT = "development", TRADOVATE_LIVE = "false", LOG_LEVEL = "debug" }
+
+[[env.development.d1_databases]]
+binding = "DB"
+database_name = "noise-trading-dev"
+database_id = "LOCAL" # Will be set by setup script
+
+# Cron triggers for development
+[[env.development.queues.producers]]
+binding = "SIGNAL_QUEUE"
+queue = "signal-processing-queue"
+
+[env.production]
+name = "noise-trading-prod"
+vars = { ENVIRONMENT = "production", TRADOVATE_LIVE = "true", LOG_LEVEL = "info" }
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "noise-trading-prod"
+database_id = "PROD" # Will be set by setup script
+
+# Scheduled tasks (cron triggers)
+# Signal processing every minute
+[triggers.crons]
+# "*" * * * * *" - Every minute: signal processing
+# "0 * * * *" - Every hour: equity snapshot
+# "0 21 * * 1-5" - 5 PM ET weekdays: end of day
+# "0 13 * * 1-5" - 9 AM ET weekdays: daily reset
+# "0 10 * * 1" - 6 AM ET Monday: weekly reset
+
+# Note: Cron triggers must be configured via wrangler cron command
+# or Cloudflare dashboard. These are documented here for reference.
+
+# Queue for async signal processing
+[[queues.producers]]
+binding = "SIGNAL_QUEUE"
+queue = "signal-processing-queue"
+
+# Limit configuration
+[limits]
+cpu_ms = 50000
+
+# Build configuration
+[build]
+command = "npm run build"
+
+# Observability
+[observability]
+enabled = true
+head_sampling_rate = 1

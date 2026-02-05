@@ -1,0 +1,46 @@
+{
+  "name": "noise-trading-engine",
+  "version": "1.0.0",
+  "description": "NOISE - Networked Optimization for Intelligent Signal Execution. Serverless algorithmic trading engine.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:dev": "wrangler deploy --env development",
+    "deploy:prod": "wrangler deploy --env production",
+    "db:migrate": "wrangler d1 execute noise-trading-dev --file=./src/db/migrations/bundle.sql",
+    "db:migrate:prod": "wrangler d1 execute noise-trading-prod --file=./src/db/migrations/bundle.sql",
+    "db:create": "./scripts/setup.sh",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "dashboard:dev": "cd dashboard && npm run dev",
+    "dashboard:build": "cd dashboard && npm run build",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "trading",
+    "algorithmic",
+    "futures",
+    "cloudflare-workers",
+    "serverless"
+  ],
+  "author": "CloudMind Inc.",
+  "license": "PROPRIETARY",
+  "dependencies": {
+    "@cloudflare/workers-types": "^4.20241218.0",
+    "itty-router": "^5.0.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^2.1.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0",
+    "wrangler": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
