@@ -2,7 +2,7 @@
  * Shared Strategy Types
  */
 
-import type { Signal, SignalDirection, MarketRegime, Timeframe } from '@/types/signal.js';
+import type { Signal, MarketRegime, Timeframe } from '@/types/signal.js';
 import type { PriceBar } from '@/types/signal.js';
 
 export interface StrategyInput {

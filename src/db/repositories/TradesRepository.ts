@@ -38,7 +38,7 @@ export class TradesRepository {
       updatedAt: now,
     };
 
-    await this.db.insert('trades', trade);
+    await this.db.insert('trades', trade as unknown as Record<string, unknown>);
     log.info('Trade created', { tradeId: id, symbol: input.symbol });
     return trade;
   }
@@ -72,7 +72,7 @@ export class TradesRepository {
     }
 
     const result = await this.db.db.prepare(sql).bind(...params).all();
-    return result.results as Trade[];
+    return result.results as unknown as Trade[];
   }
 
   async updateStatus(
@@ -92,7 +92,7 @@ export class TradesRepository {
     if (brokerOrderId !== undefined) updates.brokerOrderId = brokerOrderId;
     if (status === 'FILLED' && !updates.filledAt) updates.filledAt = Date.now();
 
-    await this.db.update('trades', id, updates);
+    await this.db.update('trades', id, updates as unknown as Record<string, unknown>);
     log.info('Trade status updated', { tradeId: id, status });
   }
 
@@ -103,18 +103,18 @@ export class TradesRepository {
 
     const sql = 'SELECT * FROM trades WHERE created_at >= ? ORDER BY created_at DESC';
     const result = await this.db.db.prepare(sql).bind(timestamp).all();
-    return result.results as Trade[];
+    return result.results as unknown as Trade[];
   }
 
   async getByDateRange(startDate: number, endDate: number): Promise<Trade[]> {
     const sql = 'SELECT * FROM trades WHERE created_at >= ? AND created_at <= ? ORDER BY created_at DESC';
     const result = await this.db.db.prepare(sql).bind(startDate, endDate).all();
-    return result.results as Trade[];
+    return result.results as unknown as Trade[];
   }
 
   async getOpenOrders(): Promise<Trade[]> {
     const sql = `SELECT * FROM trades WHERE status IN ('PENDING', 'OPEN') ORDER BY created_at ASC`;
     const result = await this.db.db.prepare(sql).all();
-    return result.results as Trade[];
+    return result.results as unknown as Trade[];
   }
 }

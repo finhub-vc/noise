@@ -5,7 +5,7 @@
  */
 
 import type { MarketRegime, RegimeDetection, PriceBar } from '@/types/signal.js';
-import { calculateADX, calculateATR, calculateSMA, calculateEMA } from './indicators/indicators.js';
+import { calculateADX, calculateATR, calculateEMA } from './indicators/indicators.js';
 
 export interface RegimeDetectorConfig {
   adxPeriod: number;
@@ -151,7 +151,7 @@ export class RegimeDetector {
   /**
    * Determine trend strength category
    */
-  private determineTrendStrength(adx: number, pdi: number, ndi: number): 'strong' | 'weak' | 'none' {
+  private determineTrendStrength(adx: number, _pdi: number, _ndi: number): 'strong' | 'weak' | 'none' {
     if (adx >= 40) return 'strong';
     if (adx >= 25) return 'weak';
     return 'none';

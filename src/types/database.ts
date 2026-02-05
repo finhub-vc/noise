@@ -3,7 +3,10 @@
  * TypeScript types matching the D1 database schema
  */
 
-import type { AssetClass, BrokerType } from './broker.js';
+import type { AssetClass, BrokerType, OrderType as BrokerOrderType } from './broker.js';
+
+// Re-export OrderType from broker for convenience
+export type OrderType = BrokerOrderType;
 
 // =============================================================================
 // Trade Types
@@ -11,7 +14,6 @@ import type { AssetClass, BrokerType } from './broker.js';
 
 export type TradeStatus = 'PENDING' | 'OPEN' | 'FILLED' | 'PARTIALLY_FILLED' | 'CANCELLED' | 'REJECTED' | 'EXPIRED';
 export type TradeSide = 'BUY' | 'SELL';
-export type OrderType = 'MARKET' | 'LIMIT' | 'STOP' | 'STOP_LIMIT';
 
 export interface Trade {
   id: string;

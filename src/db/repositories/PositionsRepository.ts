@@ -26,7 +26,7 @@ export class PositionsRepository {
         updatedAt: Date.now(),
       };
 
-      await this.db.update('positions', existing.id, updated);
+      await this.db.update('positions', existing.id, updated as unknown as Record<string, unknown>);
       return updated;
     }
 
@@ -46,7 +46,7 @@ export class PositionsRepository {
       updatedAt: Date.now(),
     };
 
-    await this.db.insert('positions', newPosition);
+    await this.db.insert('positions', newPosition as unknown as Record<string, unknown>);
     log.info('Position created', { positionId: newPosition.id, symbol: position.symbol });
     return newPosition;
   }
@@ -64,19 +64,19 @@ export class PositionsRepository {
   async getAll(): Promise<Position[]> {
     const sql = 'SELECT * FROM positions ORDER BY symbol';
     const result = await this.db.db.prepare(sql).all();
-    return result.results as Position[];
+    return result.results as unknown as Position[];
   }
 
   async getByBroker(broker: string): Promise<Position[]> {
     const sql = 'SELECT * FROM positions WHERE broker = ? ORDER BY symbol';
     const result = await this.db.db.prepare(sql).bind(broker).all();
-    return result.results as Position[];
+    return result.results as unknown as Position[];
   }
 
   async getByAssetClass(assetClass: string): Promise<Position[]> {
     const sql = 'SELECT * FROM positions WHERE asset_class = ? ORDER BY symbol';
     const result = await this.db.db.prepare(sql).bind(assetClass).all();
-    return result.results as Position[];
+    return result.results as unknown as Position[];
   }
 
   async delete(symbol: string): Promise<void> {
@@ -97,6 +97,6 @@ export class PositionsRepository {
     const placeholders = symbols.map(() => '?').join(',');
     const sql = `SELECT * FROM positions WHERE symbol IN (${placeholders})`;
     const result = await this.db.db.prepare(sql).bind(...symbols).all();
-    return result.results as Position[];
+    return result.results as unknown as Position[];
   }
 }

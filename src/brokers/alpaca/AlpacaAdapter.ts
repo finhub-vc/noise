@@ -11,11 +11,10 @@ import type {
   OrderResult,
   OrderStatusResult,
   AccountInfo,
-  OrderSide,
   PositionSide,
 } from '@/types/broker.js';
 import type { BrokerAdapter } from '../interfaces.js';
-import { createLogger, generateId, retryWithBackoff, BrokerError, OrderRejectedError } from '@/utils/index.js';
+import { createLogger, retryWithBackoff, BrokerError, OrderRejectedError } from '@/utils/index.js';
 
 const log = createLogger('ALPACA_ADAPTER');
 

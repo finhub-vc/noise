@@ -17,7 +17,7 @@ export class TradovateAuth {
   constructor(
     private db: D1Database,
     credentials: TradovateCredentials,
-    private isLive: boolean = false
+    _isLive: boolean = false
   ) {
     this.credentials = credentials;
   }

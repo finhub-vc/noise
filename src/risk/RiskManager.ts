@@ -5,13 +5,13 @@
 
 import type {
   RiskConfig,
-  RiskDecision,
   RiskEvaluation,
   PositionSize,
   ExposureCheck,
   CircuitBreakerStatus,
+  RiskCheck,
 } from '@/types/risk.js';
-import type { Signal, AssetClass } from '@/types/index.js';
+import type { Signal } from '@/types/index.js';
 import type { AggregatedAccount, UnifiedPosition } from '@/types/index.js';
 import { DEFAULT_RISK_CONFIG } from '@/config/risk.js';
 import { createLogger, roundTo } from '@/utils/index.js';
@@ -20,7 +20,6 @@ const log = createLogger('RISK_MANAGER');
 
 export class RiskManager {
   private config: RiskConfig;
-  private positions: Map<string, UnifiedPosition> = new Map();
   private circuitBreakerUntil: number | null = null;
 
   constructor(config?: Partial<RiskConfig>) {
@@ -35,7 +34,7 @@ export class RiskManager {
     signal: Signal,
     account: AggregatedAccount
   ): Promise<RiskEvaluation> {
-    const checks: Array<{ name: string; passed: boolean; reason: string; severity: string }> = [];
+    const checks: RiskCheck[] = [];
 
     // 1. Check circuit breaker
     const circuitBreakerStatus = this.getCircuitBreakerStatus();
@@ -212,7 +211,11 @@ export class RiskManager {
       violations.push('Cannot check exposure: invalid equity value');
       return {
         withinLimits: false,
-        currentExposure: account.exposure,
+        currentExposure: {
+          ...account.exposure,
+          byGroup: {},
+          longShort: { long: 0, short: 0, net: 0 },
+        },
         violations,
         warnings,
       };
@@ -259,7 +262,11 @@ export class RiskManager {
 
     return {
       withinLimits: violations.length === 0,
-      currentExposure: account.exposure,
+      currentExposure: {
+        ...account.exposure,
+        byGroup: {},
+        longShort: { long: 0, short: 0, net: 0 },
+      },
       violations,
       warnings,
     };
