@@ -26,6 +26,7 @@ export interface Trade {
 
 interface TradesResponse {
   trades: Trade[];
+  total: number; // Total number of trades available (for pagination)
   limit: number;
   offset: number;
   timestamp: number;
@@ -89,7 +90,8 @@ export function useTrades(options: UseTradesOptions = {}) {
 
       const result: TradesResponse = await response.json();
       setData(result.trades);
-      setTotalCount(result.trades.length);
+      // Use the total count from the API response for proper pagination
+      setTotalCount(result.total);
     } catch (err) {
       setError(err as Error);
     } finally {

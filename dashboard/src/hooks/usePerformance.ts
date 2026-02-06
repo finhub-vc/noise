@@ -70,10 +70,14 @@ export function usePerformance(options: UsePerformanceOptions = {}) {
       setData(perfData);
 
       // Fetch equity curve separately for full history
+      // Note: Equity curve is optional - dashboard remains functional without it
       const equityResponse = await fetch('/api/performance/equity-curve?limit=1000');
       if (equityResponse.ok) {
         const equityData = await equityResponse.json();
         setEquityCurve(equityData.equityCurve);
+      } else {
+        // Log non-200 responses for debugging but don't fail the request
+        console.warn(`Equity curve fetch failed: HTTP ${equityResponse.status}`);
       }
     } catch (err) {
       setError(err as Error);

@@ -1,7 +1,11 @@
 /**
- * useWebSocket Hook
- * WebSocket connection for real-time updates
- * Note: Falls back to polling since native WebSocket from browser to CF Workers is limited
+ * Real-time updates hook using HTTP polling
+ *
+ * NOTE: This uses HTTP polling instead of WebSocket because Cloudflare Workers
+ * don't support direct WebSocket connections from server to browser clients.
+ * Polls positions and signals every 3 seconds.
+ *
+ * TODO: Rename to usePollingUpdates once we migrate to a proper WebSocket server.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -90,9 +94,10 @@ export function useWebSocket(config: WebSocketConfig = {}) {
   }, []);
 
   // Send message (not supported in polling mode)
+  // @deprecated This function does nothing in polling mode. Will be removed when WebSocket is implemented.
   const send = useCallback((_data: unknown) => {
     // Placeholder - not supported in polling mode
-    console.warn('WebSocket send not supported in polling mode');
+    console.warn('send() is not supported in polling mode. This is a no-op.');
   }, []);
 
   // Register message handler
