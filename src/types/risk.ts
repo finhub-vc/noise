@@ -3,9 +3,6 @@
  * Types for risk configuration, position sizing, and circuit breakers
  */
 
-import type { Signal, SignalDirection } from './signal.js';
-import type { AssetClass, UnifiedPosition } from './broker.js';
-
 // =============================================================================
 // Risk Configuration
 // =============================================================================
