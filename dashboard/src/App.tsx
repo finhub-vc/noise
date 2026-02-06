@@ -1,14 +1,89 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import AccountSummary from './components/AccountSummary';
 import PositionsTable from './components/PositionsTable';
 import RiskMetrics from './components/RiskMetrics';
 import SignalsPanel from './components/SignalsPanel';
+import DashboardPage from './pages/DashboardPage';
+import TradesPage from './pages/TradesPage';
+import SignalsPage from './pages/SignalsPage';
+import PerformancePage from './pages/PerformancePage';
+import SettingsPage from './pages/SettingsPage';
 
 interface SystemStatus {
   status: string;
-  circuitBreaker: boolean;
-  positions: number;
-  lastUpdate: number;
+  environment?: string;
+  circuitBreaker: {
+    triggered: boolean;
+    reason?: string | null;
+    until?: number | null;
+  };
+  positions: { count: number };
+  risk: {
+    dailyPnl: number;
+    dailyPnlPercent: number;
+    consecutiveLosses: number;
+  };
+  timestamp: number;
+}
+
+function Navigation() {
+  const location = useLocation();
+  const isActive = (path: string) => location.pathname === path;
+
+  const navItems = [
+    { path: '/', label: 'Dashboard' },
+    { path: '/trades', label: 'Trades' },
+    { path: '/signals', label: 'Signals' },
+    { path: '/performance', label: 'Performance' },
+    { path: '/settings', label: 'Settings' },
+  ];
+
+  return (
+    <nav className="flex gap-6">
+      {navItems.map((item) => (
+        <Link
+          key={item.path}
+          to={item.path}
+          className={`text-sm font-medium transition-colors ${
+            isActive(item.path)
+              ? 'text-green-400'
+              : 'text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          {item.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+function AppHeader({ status }: { status: SystemStatus | null }) {
+  return (
+    <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-8">
+          <Link to="/" className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-green-400">NOISE</h1>
+            <span className="text-sm text-gray-400">Algorithmic Trading Engine</span>
+          </Link>
+          <Navigation />
+        </div>
+        <div className="flex items-center gap-4">
+          <span
+            className={`px-2 py-1 rounded text-xs ${
+              status?.circuitBreaker?.triggered ? 'bg-red-500' : 'bg-green-500'
+            }`}
+          >
+            {status?.circuitBreaker?.triggered ? 'CIRCUIT BREAKER' : 'SYSTEM NORMAL'}
+          </span>
+          <span className="text-xs text-gray-500">
+            {status?.environment === 'production' ? 'PROD' : 'DEV'}
+          </span>
+        </div>
+      </div>
+    </header>
+  );
 }
 
 function App() {
@@ -42,48 +117,20 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100">
-      {/* Header */}
-      <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-green-400">NOISE</h1>
-          <span className="text-sm text-gray-400">Algorithmic Trading Engine</span>
-          <div className="flex items-center gap-4">
-            <span className={`px-2 py-1 rounded text-xs ${status?.circuitBreaker ? 'bg-red-500' : 'bg-green-500'}`}>
-              {status?.circuitBreaker ? 'CIRCUIT BREAKER' : 'SYSTEM NORMAL'}
-            </span>
-            <span className="text-xs text-gray-500">
-              {status?.environment === 'production' ? 'PROD' : 'DEV'}
-            </span>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Account Summary */}
-          <div className="lg:col-span-2">
-            <AccountSummary />
-          </div>
-
-          {/* Risk Metrics */}
-          <div>
-            <RiskMetrics />
-          </div>
-
-          {/* Positions */}
-          <div className="lg:col-span-2">
-            <PositionsTable />
-          </div>
-
-          {/* Active Signals */}
-          <div>
-            <SignalsPanel />
-          </div>
-        </div>
-      </main>
-    </div>
+    <BrowserRouter>
+      <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col">
+        <AppHeader status={status} />
+        <main className="flex-1 p-6">
+          <Routes>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/trades" element={<TradesPage />} />
+            <Route path="/signals" element={<SignalsPage />} />
+            <Route path="/performance" element={<PerformancePage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Routes>
+        </main>
+      </div>
+    </BrowserRouter>
   );
 }
 
