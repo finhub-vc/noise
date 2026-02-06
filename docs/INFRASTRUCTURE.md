@@ -4,7 +4,8 @@
 
 | Resource | Type | ID/Name | Created |
 |----------|------|---------|---------|
-| (none yet) | - | - | - |
+| D1 Database (Dev) | D1 |  | $(date +%Y-%m-%d) |
+| D1 Database (Prod) | D1 |  | $(date +%Y-%m-%d) |
 
 ## Environment Variables
 
@@ -19,3 +20,8 @@ Deploy via GitHub Actions or manually:
 ```bash
 wrangler deploy
 ```
+
+## Database IDs
+
+- **Development**: 
+- **Production**: 
