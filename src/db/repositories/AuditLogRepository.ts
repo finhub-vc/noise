@@ -19,12 +19,12 @@ export class AuditLogRepository {
       severity: input.severity,
       category: input.category,
       message: input.message,
-      context: input.context ? JSON.stringify(input.context) : null,
+      context: input.context ? JSON.stringify(input.context) : '{}',
       relatedEntityId: input.relatedEntityId ?? null,
       relatedEntityType: input.relatedEntityType ?? null,
     };
 
-    await this.db.insert('audit_log', auditLog);
+    await this.db.insert('audit_log', auditLog as unknown as Record<string, unknown>);
   }
 
   async query(options?: {
@@ -71,13 +71,13 @@ export class AuditLogRepository {
     }
 
     const result = await this.db.db.prepare(sql).bind(...params).all();
-    return result.results as AuditLog[];
+    return result.results as unknown as AuditLog[];
   }
 
   async getRecent(limit: number = 100): Promise<AuditLog[]> {
     const sql = 'SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT ?';
     const result = await this.db.db.prepare(sql).bind(limit).all();
-    return result.results as AuditLog[];
+    return result.results as unknown as AuditLog[];
   }
 
   async getErrors(limit: number = 50): Promise<AuditLog[]> {
@@ -88,7 +88,7 @@ export class AuditLogRepository {
       LIMIT ?
     `;
     const result = await this.db.db.prepare(sql).bind(limit).all();
-    return result.results as AuditLog[];
+    return result.results as unknown as AuditLog[];
   }
 
   async getByEntity(entityId: string, entityType: string): Promise<AuditLog[]> {
@@ -98,7 +98,7 @@ export class AuditLogRepository {
       ORDER BY timestamp DESC
     `;
     const result = await this.db.db.prepare(sql).bind(entityId, entityType).all();
-    return result.results as AuditLog[];
+    return result.results as unknown as AuditLog[];
   }
 
   async prune(olderThanDays: number = 30): Promise<number> {

@@ -4,8 +4,7 @@
  * Trades return to the mean after extreme moves
  */
 
-import type { Signal, SignalDirection, MarketRegime, Timeframe } from '@/types/signal.js';
-import type { PriceBar, IndicatorResult } from '@/types/signal.js';
+import type { Signal, SignalDirection } from '@/types/signal.js';
 import type { StrategyInput } from './types.js';
 import { calculateBollingerBands, calculateRSI, bollingerSignal, rsiSignal, calculateATR } from '../indicators/indicators.js';
 import { generateId } from '@/utils/index.js';
@@ -125,7 +124,7 @@ export class MeanReversionStrategy {
     return signals;
   }
 
-  private calculateStrength(bandPercentile: number, rsi: number, bb: { upper: number; lower: number; middle: number }): number {
+  private calculateStrength(bandPercentile: number, rsi: number, _bb: { upper: number; lower: number; middle: number }): number {
     let strength = 0.5;
 
     // Distance from band extremes

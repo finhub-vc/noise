@@ -3,8 +3,7 @@
  * Identifies strong directional moves using RSI and MACD
  */
 
-import type { Signal, SignalDirection, MarketRegime, Timeframe } from '@/types/signal.js';
-import type { PriceBar, IndicatorResult } from '@/types/signal.js';
+import type { Signal, SignalDirection } from '@/types/signal.js';
 import type { StrategyInput } from './types.js';
 import { calculateRSI, calculateMACD, rsiSignal, macdSignal } from '../indicators/indicators.js';
 import { generateId } from '@/utils/index.js';

@@ -67,7 +67,7 @@ export class RiskStateRepository {
     type: string | null = null
   ): Promise<void> {
     await this.update({
-      circuitBreakerTriggered: triggered ? 1 : 0,
+      circuitBreakerTriggered: triggered,
       circuitBreakerReason: reason,
       circuitBreakerUntil: until,
       circuitBreakerType: type,

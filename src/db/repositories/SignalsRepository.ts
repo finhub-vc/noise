@@ -3,7 +3,8 @@
  * Data access layer for trading signals
  */
 
-import type { DBSignal, Signal } from '@/types/database.js';
+import type { DBSignal } from '@/types/database.js';
+import type { Signal } from '@/types/signal.js';
 import { generateId, createLogger } from '@/utils/index.js';
 import type { DatabaseManager } from '../DatabaseManager.js';
 
@@ -14,7 +15,6 @@ export class SignalsRepository {
 
   async create(signal: Omit<Signal, 'id' | 'status'>): Promise<DBSignal> {
     const id = generateId('signal');
-    const now = Date.now();
 
     const dbSignal: DBSignal = {
       id,
@@ -38,7 +38,7 @@ export class SignalsRepository {
       status: 'ACTIVE',
     };
 
-    await this.db.insert('signals', dbSignal);
+    await this.db.insert('signals', dbSignal as unknown as Record<string, unknown>);
     log.info('Signal created', { signalId: id, symbol: signal.symbol, direction: signal.direction });
     return dbSignal;
   }
@@ -55,7 +55,7 @@ export class SignalsRepository {
       ORDER BY timestamp DESC
     `;
     const result = await this.db.db.prepare(sql).bind(now).all();
-    return result.results as DBSignal[];
+    return result.results as unknown as DBSignal[];
   }
 
   async getActiveSignalsForSymbol(symbol: string): Promise<DBSignal[]> {
@@ -66,14 +66,14 @@ export class SignalsRepository {
       ORDER BY timestamp DESC
     `;
     const result = await this.db.db.prepare(sql).bind(symbol, now).all();
-    return result.results as DBSignal[];
+    return result.results as unknown as DBSignal[];
   }
 
   async markExecuted(id: string): Promise<void> {
     await this.db.update('signals', id, {
       executedAt: Date.now(),
       status: 'EXECUTED' as const,
-    });
+    } as unknown as Record<string, unknown>);
     log.info('Signal marked executed', { signalId: id });
   }
 
@@ -81,7 +81,7 @@ export class SignalsRepository {
     await this.db.update('signals', id, {
       cancelledAt: Date.now(),
       status: 'CANCELLED' as const,
-    });
+    } as unknown as Record<string, unknown>);
     log.info('Signal marked cancelled', { signalId: id });
   }
 
@@ -121,7 +121,7 @@ export class SignalsRepository {
     }
 
     const result = await this.db.db.prepare(sql).bind(...params).all();
-    return result.results as DBSignal[];
+    return result.results as unknown as DBSignal[];
   }
 
   async getByStrategy(strategy: string, options?: { limit?: number }): Promise<DBSignal[]> {
@@ -134,6 +134,6 @@ export class SignalsRepository {
     }
 
     const result = await this.db.db.prepare(sql).bind(...params).all();
-    return result.results as DBSignal[];
+    return result.results as unknown as DBSignal[];
   }
 }

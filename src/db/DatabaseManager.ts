@@ -3,18 +3,7 @@
  * Wrapper for Cloudflare D1 database operations
  */
 
-import type {
-  Trade,
-  Position,
-  DBSignal,
-  DBRiskState,
-  DailyMetrics,
-  EquityCurve,
-  AuditLog,
-  CreateTradeInput,
-  CreateAuditLogInput,
-} from '@/types/database.js';
-import { createLogger, generateId } from '@/utils/index.js';
+import { createLogger } from '@/utils/index.js';
 
 const log = createLogger('DATABASE');
 
@@ -29,7 +18,10 @@ export interface QueryResult {
 }
 
 export class DatabaseManager {
-  constructor(private db: D1Database) {
+  public db: D1Database;
+
+  constructor(db: D1Database) {
+    this.db = db;
     log.info('DatabaseManager initialized');
   }
 
@@ -140,7 +132,7 @@ export class DatabaseManager {
   ] as const);
 
   private validateTable(table: string): void {
-    if (!this.VALID_TABLES.has(table)) {
+    if (!(this.VALID_TABLES as Set<string>).has(table)) {
       throw new Error(`Invalid table name: ${table}`);
     }
   }

@@ -5,7 +5,6 @@
 
 import type {
   AssetClass,
-  BrokerType,
   UnifiedOrder,
   UnifiedPosition,
   AggregatedAccount,
@@ -24,8 +23,8 @@ export class BrokerManager {
   private alpaca: AlpacaAdapter;
 
   constructor(
-    private db: D1Database,
-    private config: {
+    _db: D1Database,
+    _config: {
       tradovate: {
         username: string;
         password: string;
@@ -44,17 +43,17 @@ export class BrokerManager {
     // Initialize Alpaca
     this.alpaca = new AlpacaAdapter(
       new AlpacaCredentials(
-        config.alpaca.apiKey,
-        config.alpaca.apiSecret,
-        config.alpaca.baseUrl
+        _config.alpaca.apiKey,
+        _config.alpaca.apiSecret,
+        _config.alpaca.baseUrl
       )
     );
 
     // Initialize Tradovate
     this.tradovate = new TradovateAdapter(
-      db,
-      config.tradovate,
-      config.tradovateLive || false
+      _db,
+      _config.tradovate,
+      _config.tradovateLive || false
     );
 
     // Map asset classes to adapters

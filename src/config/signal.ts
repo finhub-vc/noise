@@ -3,7 +3,7 @@
  * Default signal generation parameters for the NOISE trading engine
  */
 
-import type { SignalConfig, StrategyConfig, Timeframe } from '@/types/signal.js';
+import type { SignalConfig, StrategyConfig } from '@/types/signal.js';
 
 // =============================================================================
 // Strategy Configurations
@@ -119,7 +119,9 @@ export type TradingSession = 'PRE_MARKET' | 'REGULAR_HOURS' | 'AFTER_HOURS' | 'C
 export interface SessionConfig {
   name: TradingSession;
   startHour: number; // 24-hour ET
+  startMinute: number; // 0-59
   endHour: number; // 24-hour ET
+  endMinute: number; // 0-59
   strengthMultiplier: number; // 0-1
   allowNewEntries: boolean;
 }

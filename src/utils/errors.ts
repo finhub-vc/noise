@@ -16,7 +16,8 @@ export class TradingError extends Error {
     this.name = this.constructor.name;
     this.code = code;
     this.context = context;
-    Error.captureStackTrace?.(this, this.constructor);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (Error as any).captureStackTrace?.(this, this.constructor);
   }
 
   toJSON(): Record<string, unknown> {

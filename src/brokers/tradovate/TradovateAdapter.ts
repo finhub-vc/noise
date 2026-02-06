@@ -11,14 +11,12 @@ import type {
   OrderResult,
   OrderStatusResult,
   AccountInfo,
-  OrderSide,
-  OrderType,
   PositionSide,
 } from '@/types/broker.js';
 import type { BrokerAdapter } from '../interfaces.js';
 import { TradovateAuth } from './auth.js';
 import { TRADOVATE_CONTRACTS, TRADOVATE_URLS } from './types.js';
-import { createLogger, generateId, retryWithBackoff, BrokerError, OrderRejectedError } from '@/utils/index.js';
+import { createLogger, retryWithBackoff, BrokerError, OrderRejectedError } from '@/utils/index.js';
 
 const log = createLogger('TRADOVATE_ADAPTER');
 
@@ -28,7 +26,7 @@ export class TradovateAdapter implements BrokerAdapter {
   private isConnectedFlag = false;
 
   constructor(
-    private db: D1Database,
+    _db: D1Database,
     credentials: {
       username: string;
       password: string;
@@ -38,7 +36,7 @@ export class TradovateAdapter implements BrokerAdapter {
     },
     isLive: boolean = false
   ) {
-    this.auth = new TradovateAuth(db, credentials, isLive);
+    this.auth = new TradovateAuth(_db, credentials, isLive);
     this.baseUrl = isLive ? TRADOVATE_URLS.LIVE : TRADOVATE_URLS.DEMO;
   }
 
@@ -80,12 +78,12 @@ export class TradovateAdapter implements BrokerAdapter {
       throw new BrokerError(`Failed to get account: ${response.status}`);
     }
 
-    const data = await response.json();
-    const account = data[0]; // Tradovate returns array
+    const data = await response.json() as unknown[];
+    const account = data[0] as Record<string, unknown> | undefined; // Tradovate returns array
 
     return {
       broker: 'TRADOVATE',
-      accountId: String(account.accountId),
+      accountId: account ? String(account.accountId) : '',
       equity: 0, // Tradovate doesn't provide this directly
       cash: 0,
       buyingPower: 0,
@@ -106,9 +104,9 @@ export class TradovateAdapter implements BrokerAdapter {
       throw new BrokerError(`Failed to get positions: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as unknown[] | unknown;
 
-    return (data || []).map((pos: any) => this.mapPosition(pos));
+    return (Array.isArray(data) ? data : []).map((pos) => this.mapPosition(pos));
   }
 
   async placeOrder(order: UnifiedOrder): Promise<OrderResult> {
@@ -143,15 +141,15 @@ export class TradovateAdapter implements BrokerAdapter {
       throw new BrokerError(`Order failed: ${error}`);
     }
 
-    const data = await response.json();
-    const orderId = data.orderId;
+    const data = await response.json() as Record<string, unknown>;
+    const orderId = data.orderId as number | undefined;
 
     log.info('Order placed', { orderId, symbol: order.symbol });
 
     return {
       clientOrderId: order.clientOrderId,
       brokerOrderId: String(orderId),
-      status: this.mapOrderStatus(data.status),
+      status: this.mapOrderStatus(String(data.status || '')),
       filledQuantity: 0,
       avgFillPrice: undefined,
       timestamp: Date.now(),
@@ -187,15 +185,15 @@ export class TradovateAdapter implements BrokerAdapter {
       throw new BrokerError(`Status check failed: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as Record<string, unknown>;
 
     return {
       orderId,
-      status: this.mapOrderStatus(data.status),
-      filledQuantity: data.filledQuantity || 0,
-      avgFillPrice: data.avgFillPrice,
-      remainingQuantity: data.quantity - (data.filledQuantity || 0),
-      createdAt: data.creationTimestamp,
+      status: this.mapOrderStatus(String(data.status || '')),
+      filledQuantity: (data.filledQuantity as number) || 0,
+      avgFillPrice: data.avgFillPrice as number | undefined,
+      remainingQuantity: (data.quantity as number) - ((data.filledQuantity as number) || 0),
+      createdAt: (data.creationTimestamp as number | undefined) ?? Date.now(),
       updatedAt: Date.now(),
     };
   }
