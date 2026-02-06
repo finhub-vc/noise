@@ -22,7 +22,7 @@ echo "Creating migration bundle..."
 
 : > "$BUNDLE_FILE"
 
-for migration in "$MIGRATIONS_DIR"/*.sql; do
+for migration in "$MIGRATIONS_DIR"/[0-9]*.sql; do
     filename=$(basename "$migration")
     echo "  Including $filename"
     echo "-- Migration: $filename" >> "$BUNDLE_FILE"

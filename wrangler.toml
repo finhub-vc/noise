@@ -8,11 +8,8 @@ routes = [
   { pattern = "api/*", zone_name = "" }
 ]
 
-# Analytics
-analytics_enabled = true
-
-# Logging
-logpush = true
+# Note: Cron triggers are configured via wrangler cron command
+# Example: wrangler cron test '0 * * * *' --name noise-trading-dev
 
 [env.development]
 name = "noise-trading-dev"
@@ -21,7 +18,7 @@ vars = { ENVIRONMENT = "development", TRADOVATE_LIVE = "false", LOG_LEVEL = "deb
 [[env.development.d1_databases]]
 binding = "DB"
 database_name = "noise-trading-dev"
-database_id = "LOCAL" # Will be set by setup script
+database_id = "0cdd3310-90f6-4dd2-9576-351f184b3176"
 
 # Cron triggers for development
 [[env.development.queues.producers]]
@@ -35,19 +32,7 @@ vars = { ENVIRONMENT = "production", TRADOVATE_LIVE = "true", LOG_LEVEL = "info"
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "noise-trading-prod"
-database_id = "PROD" # Will be set by setup script
-
-# Scheduled tasks (cron triggers)
-# Signal processing every minute
-[triggers.crons]
-# "*" * * * * *" - Every minute: signal processing
-# "0 * * * *" - Every hour: equity snapshot
-# "0 21 * * 1-5" - 5 PM ET weekdays: end of day
-# "0 13 * * 1-5" - 9 AM ET weekdays: daily reset
-# "0 10 * * 1" - 6 AM ET Monday: weekly reset
-
-# Note: Cron triggers must be configured via wrangler cron command
-# or Cloudflare dashboard. These are documented here for reference.
+database_id = "c2e805f0-6564-4686-a8ab-e407c680499d"
 
 # Queue for async signal processing
 [[queues.producers]]
