@@ -9,6 +9,14 @@ import {
   corsPreflightResponse,
   withApiHeaders,
 } from './middleware/cors.js';
+import {
+  createSignalSchema,
+  updateSignalSchema,
+  createTradeSchema,
+  updateTradeSchema,
+  quoteRequestSchema,
+  createValidationMiddleware,
+} from './middleware/validation.js';
 
 // Validation schemas are imported from middleware/validation.ts
 // Re-exporting types for convenience
@@ -489,13 +497,17 @@ router.post('/api/signals', async (request: Request, env: Env) => {
   const authError = await authenticate(request, env);
   if (authError) return authError;
 
+  // Validate request body
+  const validateSignal = createValidationMiddleware(
+    createSignalSchema.extend({ signal: createSignalSchema }),
+    'body'
+  );
+  const validationError = await validateSignal(request, env);
+  if (validationError) return validationError;
+
   try {
     const body = await request.json() as CreateSignalRequest;
     const { signal } = body;
-
-    if (!signal) {
-      return Response.json({ error: 'Missing signal data' }, { status: 400 });
-    }
 
     const id = crypto.randomUUID();
     const now = Date.now();
@@ -546,6 +558,11 @@ router.post('/api/signals', async (request: Request, env: Env) => {
 router.put('/api/signals/:id', async (request: Request, env: Env) => {
   const authError = await authenticate(request, env);
   if (authError) return authError;
+
+  // Validate request body
+  const validateUpdate = createValidationMiddleware(updateSignalSchema, 'body');
+  const validationError = await validateUpdate(request, env as any);
+  if (validationError) return validationError;
 
   try {
     const url = new URL(request.url);
@@ -699,13 +716,17 @@ router.post('/api/trades', async (request: Request, env: Env) => {
   const authError = await authenticate(request, env);
   if (authError) return authError;
 
+  // Validate request body
+  const validateTrade = createValidationMiddleware(
+    createTradeSchema.extend({ trade: createTradeSchema }),
+    'body'
+  );
+  const validationError = await validateTrade(request, env as any);
+  if (validationError) return validationError;
+
   try {
     const body = await request.json() as CreateTradeRequest;
     const { trade } = body;
-
-    if (!trade) {
-      return Response.json({ error: 'Missing trade data' }, { status: 400 });
-    }
 
     const clientOrderId = `${trade.symbol}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
     const id = crypto.randomUUID();
@@ -747,6 +768,11 @@ router.post('/api/trades', async (request: Request, env: Env) => {
 router.put('/api/trades/:id', async (request: Request, env: Env) => {
   const authError = await authenticate(request, env);
   if (authError) return authError;
+
+  // Validate request body
+  const validateUpdate = createValidationMiddleware(updateTradeSchema, 'body');
+  const validationError = await validateUpdate(request, env as any);
+  if (validationError) return validationError;
 
   try {
     const url = new URL(request.url);
@@ -930,17 +956,14 @@ router.post('/api/quotes', async (request: Request, env: Env) => {
   const authError = await authenticate(request, env);
   if (authError) return authError;
 
+  // Validate request body
+  const validateQuotes = createValidationMiddleware(quoteRequestSchema, 'body');
+  const validationError = await validateQuotes(request, env as any);
+  if (validationError) return validationError;
+
   try {
     const body = await request.json() as QuotesRequest;
     const { symbols } = body;
-
-    if (!Array.isArray(symbols) || symbols.length === 0) {
-      return Response.json({ error: 'Invalid symbols array' }, { status: 400 });
-    }
-
-    if (symbols.length > 100) {
-      return Response.json({ error: 'Maximum 100 symbols allowed' }, { status: 400 });
-    }
 
     // For now, return mock quotes
     // In production, this would fetch from the brokers

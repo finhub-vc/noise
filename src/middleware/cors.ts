@@ -19,10 +19,10 @@ function getCorsConfig(env?: string): CorsConfig {
   const allowedOrigins: string[] = [];
   if (isDevelopment) {
     allowedOrigins.push(
-      'http://localhost:5173',  // Vite dev server
-      'http://localhost:3000',  // Common alternative
-      'http://127.0.0.1:5173',
-      'http://127.0.0.1:3000'
+      'http://localhost:3000',  // Vite dev server (configured port)
+      'http://localhost:5173',  // Vite default
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:5173'
     );
   }
 
