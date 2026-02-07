@@ -173,16 +173,23 @@ export function useWebSocket(config: WebSocketConfig = {}) {
  * Hook for real-time position updates
  */
 export function useRealtimePositions() {
-  const [positions, setPositions] = useState<any[]>([]);
+  const [positions, setPositions] = useState<Array<{
+    symbol: string;
+    side: 'LONG' | 'SHORT';
+    quantity: number;
+    entry_price: number;
+    current_price?: number;
+    unrealized_pnl?: number;
+  }>>([]);
 
   const { onMessage, connected } = useWebSocket({ enabled: true });
 
   useEffect(() => {
     const unsubscribe = onMessage((data: unknown) => {
       if ((data as { type?: string }).type === 'positions') {
-        const positionsData = (data as { data?: { positions?: any[] } }).data;
-        if (positionsData?.positions) {
-          setPositions(positionsData.positions);
+        const positionsData = (data as { data?: { positions?: unknown } }).data;
+        if (positionsData?.positions && Array.isArray(positionsData.positions)) {
+          setPositions(positionsData.positions as typeof positions);
         }
       }
     });
@@ -197,16 +204,24 @@ export function useRealtimePositions() {
  * Hook for real-time signal updates
  */
 export function useRealtimeSignals() {
-  const [signals, setSignals] = useState<any[]>([]);
+  const [signals, setSignals] = useState<Array<{
+    id: string;
+    symbol: string;
+    direction: 'LONG' | 'SHORT' | 'NEUTRAL';
+    strength: number;
+    entry_price: number;
+    stop_loss: number;
+    status: string;
+  }>>([]);
 
   const { onMessage, connected } = useWebSocket({ enabled: true });
 
   useEffect(() => {
     const unsubscribe = onMessage((data: unknown) => {
       if ((data as { type?: string }).type === 'signals') {
-        const signalsData = (data as { data?: { signals?: any[] } }).data;
-        if (signalsData?.signals) {
-          setSignals(signalsData.signals);
+        const signalsData = (data as { data?: { signals?: unknown } }).data;
+        if (signalsData?.signals && Array.isArray(signalsData.signals)) {
+          setSignals(signalsData.signals as typeof signals);
         }
       }
     });
