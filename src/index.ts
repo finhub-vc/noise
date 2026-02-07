@@ -17,6 +17,7 @@ import {
   quoteRequestSchema,
   createValidationMiddleware,
 } from './middleware/validation.js';
+import { isWebSocketUpgrade, upgradeWebSocket } from './websocket/upgradeWebSocket.js';
 
 // Validation schemas are imported from middleware/validation.ts
 // Re-exporting types for convenience
@@ -1035,6 +1036,20 @@ export async function scheduled(_event: ScheduledEvent, _env: Env, _ctx: Executi
 // =============================================================================
 
 export default {
-  ...router,
+  fetch: (request: Request, env: Env, ctx: ExecutionContext) => {
+    // Handle WebSocket upgrade requests
+    if (isWebSocketUpgrade(request)) {
+      return upgradeWebSocket(request, { NOISE_D1_DATABASE: env.DB }, ctx);
+    }
+
+    // Handle CORS preflight
+    if (request.method === 'OPTIONS') {
+      return corsPreflightResponse();
+    }
+
+    // Handle regular HTTP requests through the router
+    return router.fetch(request, env, ctx).then(withApiHeaders);
+  },
+
   scheduled,
 };

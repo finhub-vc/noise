@@ -1,11 +1,10 @@
 /**
- * Real-time updates hook using HTTP polling
+ * Real-time updates hook using WebSocket with HTTP polling fallback
  *
- * NOTE: This uses HTTP polling instead of WebSocket because Cloudflare Workers
- * don't support direct WebSocket connections from server to browser clients.
- * Polls positions and signals every 3 seconds.
+ * Attempts to use WebSocket for real-time updates, falling back to HTTP polling
+ * if WebSocket is not available or fails to connect.
  *
- * TODO: Rename to usePollingUpdates once we migrate to a proper WebSocket server.
+ * Polls positions and signals every 3 seconds in fallback mode.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -13,29 +12,49 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 export interface WebSocketConfig {
   enabled?: boolean;
   reconnectInterval?: number;
+  pollingInterval?: number;
+  preferPolling?: boolean;
 }
 
 export interface WebSocketStatus {
   connected: boolean;
   connecting: boolean;
   error: Error | null;
+  mode: 'websocket' | 'polling' | 'disconnected';
 }
 
 type MessageHandler = (data: unknown) => void;
 type ConnectionChangeHandler = (connected: boolean) => void;
 
 export function useWebSocket(config: WebSocketConfig = {}) {
-  const { enabled = true, reconnectInterval = 5000 } = config;
+  const {
+    enabled = true,
+    reconnectInterval = 5000,
+    pollingInterval = 3000,
+    preferPolling = false,
+  } = config;
 
   const [status, setStatus] = useState<WebSocketStatus>({
     connected: false,
     connecting: false,
     error: null,
+    mode: 'disconnected',
   });
 
   const messageHandlers = useRef(new Set<MessageHandler>());
   const connectionHandlers = useRef(new Set<ConnectionChangeHandler>());
+  const wsRef = useRef<WebSocket | null>(null);
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Update mode in status
+  const setStatusWithMode = useCallback((updates: Partial<WebSocketStatus>) => {
+    setStatus((prev) => {
+      const mode = updates.mode ||
+        (updates.connected ? (wsRef.current ? 'websocket' : 'polling') : 'disconnected');
+      return { ...prev, ...updates, mode };
+    });
+  }, []);
 
   // Connect to real-time updates
   const connect = useCallback(() => {
@@ -43,62 +62,167 @@ export function useWebSocket(config: WebSocketConfig = {}) {
       return;
     }
 
-    setStatus({ connected: false, connecting: true, error: null });
-
-    // Since Cloudflare Workers don't support WebSocket from server to browser directly,
-    // we use polling as a fallback
-    try {
-      // Start polling for updates
-      pollingIntervalRef.current = setInterval(async () => {
-        try {
-          // Poll for position updates
-          const positionsResponse = await fetch('/api/positions');
-          if (positionsResponse.ok) {
-            const positionsData = await positionsResponse.json();
-            notifyHandlers({ type: 'positions', data: positionsData });
-          }
-
-          // Poll for signal updates
-          const signalsResponse = await fetch('/api/signals/active');
-          if (signalsResponse.ok) {
-            const signalsData = await signalsResponse.json();
-            notifyHandlers({ type: 'signals', data: signalsData });
-          }
-
-          if (!status.connected) {
-            setStatus({ connected: true, connecting: false, error: null });
-            notifyConnectionChange(true);
-          }
-        } catch (error) {
-          setStatus((prev) => ({ ...prev, connected: false, error: error as Error }));
-          notifyConnectionChange(false);
-        }
-      }, 3000); // Poll every 3 seconds
-
-      setStatus({ connected: true, connecting: false, error: null });
-      notifyConnectionChange(true);
-    } catch (error) {
-      setStatus({ connected: false, connecting: false, error: error as Error });
-      notifyConnectionChange(false);
+    // Clear any existing reconnection timer
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
     }
-  }, [enabled]);
+
+    setStatus({ connected: false, connecting: true, error: null, mode: 'disconnected' });
+
+    // Try WebSocket first unless polling is preferred
+    if (!preferPolling) {
+      try {
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${window.location.host}/api/ws`;
+
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          // Clear polling when WebSocket connects
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+
+          setStatusWithMode({ connected: true, connecting: false, error: null, mode: 'websocket' });
+          notifyConnectionChange(true);
+          console.log('[useWebSocket] Connected via WebSocket');
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            notifyHandlers(message);
+          } catch (error) {
+            console.error('[useWebSocket] Failed to parse WebSocket message:', error);
+          }
+        };
+
+        ws.onclose = (event) => {
+          wsRef.current = null;
+          setStatusWithMode((prev) => ({
+            ...prev,
+            connected: false,
+            mode: 'disconnected',
+          }));
+          notifyConnectionChange(false);
+          console.log('[useWebSocket] WebSocket closed:', event.code, event.reason);
+
+          // Attempt to reconnect if not explicitly disconnected
+          if (enabled && !event.wasClean) {
+            reconnectTimeoutRef.current = setTimeout(() => {
+              connect();
+            }, reconnectInterval);
+          }
+        };
+
+        ws.onerror = (error) => {
+          console.error('[useWebSocket] WebSocket error:', error);
+          // Fall back to polling on error
+          startPolling();
+        };
+
+        // Don't start polling yet - wait for WebSocket connection or error
+        return;
+      } catch (error) {
+        console.warn('[useWebSocket] WebSocket creation failed, falling back to polling:', error);
+        wsRef.current = null;
+      }
+    }
+
+    // Fallback to HTTP polling
+    startPolling();
+  }, [enabled, preferPolling, reconnectInterval, pollingInterval, setStatusWithMode]);
+
+  // Start HTTP polling
+  const startPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      return; // Already polling
+    }
+
+    console.log('[useWebSocket] Using HTTP polling fallback');
+    setStatusWithMode({ connected: false, connecting: false, error: null, mode: 'polling' });
+
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        // Poll for position updates
+        const positionsResponse = await fetch('/api/positions');
+        if (positionsResponse.ok) {
+          const positionsData = await positionsResponse.json();
+          notifyHandlers({ type: 'positions', data: positionsData });
+        }
+
+        // Poll for signal updates
+        const signalsResponse = await fetch('/api/signals/active');
+        if (signalsResponse.ok) {
+          const signalsData = await signalsResponse.json();
+          notifyHandlers({ type: 'signals', data: signalsData });
+        }
+
+        // Mark as connected if we haven't yet
+        setStatus((prev) => {
+          if (!prev.connected && prev.mode === 'polling') {
+            notifyConnectionChange(true);
+            return { ...prev, connected: true, mode: 'polling' };
+          }
+          return prev;
+        });
+      } catch (error) {
+        console.error('[useWebSocket] Polling error:', error);
+        setStatus((prev) => ({
+          ...prev,
+          connected: false,
+          error: error as Error,
+        }));
+        notifyConnectionChange(false);
+      }
+    }, pollingInterval);
+
+    setStatusWithMode({ connected: true, connecting: false, error: null, mode: 'polling' });
+    notifyConnectionChange(true);
+  }, [pollingInterval, setStatusWithMode]);
 
   // Disconnect
   const disconnect = useCallback(() => {
+    // Close WebSocket
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
+    // Clear polling
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
-    setStatus({ connected: false, connecting: false, error: null });
+
+    // Clear reconnect timer
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
+    setStatus({ connected: false, connecting: false, error: null, mode: 'disconnected' });
     notifyConnectionChange(false);
+  }, [setStatusWithMode]);
+
+  // Send message
+  const send = useCallback((data: unknown) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(data));
+    } else {
+      console.warn('[useWebSocket] Cannot send message: WebSocket not connected');
+    }
   }, []);
 
-  // Send message (not supported in polling mode)
-  // @deprecated This function does nothing in polling mode. Will be removed when WebSocket is implemented.
-  const send = useCallback((_data: unknown) => {
-    // Placeholder - not supported in polling mode
-    console.warn('send() is not supported in polling mode. This is a no-op.');
-  }, []);
+  // Subscribe to quotes (WebSocket only)
+  const subscribeQuotes = useCallback((symbols: string[]) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      send({ type: 'quotes', data: symbols });
+    }
+  }, [send]);
 
   // Register message handler
   const onMessage = useCallback((handler: MessageHandler): (() => void) => {
@@ -122,7 +246,7 @@ export function useWebSocket(config: WebSocketConfig = {}) {
       try {
         handler(data);
       } catch (error) {
-        console.error('WebSocket handler error:', error);
+        console.error('[useWebSocket] Handler error:', error);
       }
     });
   }, []);
@@ -132,7 +256,7 @@ export function useWebSocket(config: WebSocketConfig = {}) {
       try {
         handler(connected);
       } catch (error) {
-        console.error('Connection change handler error:', error);
+        console.error('[useWebSocket] Connection change handler error:', error);
       }
     });
   }, []);
@@ -148,22 +272,27 @@ export function useWebSocket(config: WebSocketConfig = {}) {
     };
   }, [enabled, connect, disconnect]);
 
-  // Auto-reconnect on error
+  // Auto-reconnect on error (only for polling mode)
   useEffect(() => {
-    if (status.error && !status.connecting) {
-      const timer = setTimeout(() => {
+    if (status.error && !status.connecting && status.mode === 'polling') {
+      reconnectTimeoutRef.current = setTimeout(() => {
         connect();
       }, reconnectInterval);
 
-      return () => clearTimeout(timer);
+      return () => {
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+        }
+      };
     }
-  }, [status.error, status.connecting, connect, reconnectInterval]);
+  }, [status.error, status.connecting, status.mode, connect, reconnectInterval]);
 
   return {
     ...status,
     connect,
     disconnect,
     send,
+    subscribeQuotes,
     onMessage,
     onConnectionChange,
   };
