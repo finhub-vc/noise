@@ -19,16 +19,30 @@ export type OrderStatus = 'PENDING' | 'OPEN' | 'FILLED' | 'PARTIALLY_FILLED' | '
 // Order Types
 // =============================================================================
 
+/**
+ * Unified order representation across all brokers
+ * Provides a common interface for order placement
+ */
 export interface UnifiedOrder {
+  /** Client-generated unique order identifier */
   clientOrderId: string;
+  /** Trading symbol (e.g., 'MNQ', 'TQQQ') */
   symbol: string;
+  /** Asset class for broker routing */
   assetClass: AssetClass;
+  /** Order direction */
   side: OrderSide;
+  /** Order quantity (contracts or shares) */
   quantity: number;
+  /** Order type */
   type: OrderType;
+  /** Limit price (required for LIMIT and STOP_LIMIT orders) */
   limitPrice?: number;
+  /** Stop price (required for STOP and STOP_LIMIT orders) */
   stopPrice?: number;
+  /** Time in force */
   timeInForce: TimeInForce;
+  /** Optional metadata for tracking */
   metadata?: Record<string, unknown>;
 }
 
@@ -56,17 +70,32 @@ export interface OrderStatusResult {
 // Position Types
 // =============================================================================
 
+/**
+ * Unified position representation across all brokers
+ * Combines data from Tradovate and Alpaca positions
+ */
 export interface UnifiedPosition {
+  /** Trading symbol */
   symbol: string;
+  /** Asset class */
   assetClass: AssetClass;
+  /** Broker holding the position */
   broker: BrokerType;
+  /** Position side (LONG or SHORT) */
   side: PositionSide;
+  /** Position quantity (positive for both LONG and SHORT) */
   quantity: number;
+  /** Average entry price */
   entryPrice: number;
+  /** Current market price */
   currentPrice: number;
+  /** Total market value (quantity * currentPrice) */
   marketValue: number;
+  /** Unrealized P&L (current value - entry value) */
   unrealizedPnl: number;
+  /** Realized P&L from closed portions of this position */
   realizedPnl?: number;
+  /** Last update timestamp (ms since epoch) */
   updatedAt: number;
 }
 
@@ -105,25 +134,41 @@ export interface AggregatedAccount {
 // Broker Adapter Interface
 // =============================================================================
 
+/**
+ * Unified interface for broker adapters
+ * Implements common methods for Tradovate (futures) and Alpaca (equities)
+ */
 export interface BrokerAdapter {
   // Authentication
+  /** Authenticate with the broker using credentials */
   authenticate(): Promise<void>;
+  /** Refresh authentication token (if using OAuth) */
   refreshToken?(): Promise<void>;
+  /** Check if currently authenticated */
   isConnected(): boolean;
 
   // Account
+  /** Get account information including equity, cash, buying power */
   getAccount(): Promise<AccountInfo>;
+  /** Get all open positions */
   getPositions(): Promise<UnifiedPosition[]>;
 
   // Orders
+  /** Place a new order */
   placeOrder(order: UnifiedOrder): Promise<OrderResult>;
+  /** Cancel an existing order */
   cancelOrder(orderId: string): Promise<void>;
+  /** Get status of a specific order */
   getOrderStatus(orderId: string): Promise<OrderStatusResult>;
+  /** Get all open orders (optional) */
   getOpenOrders?(): Promise<OrderStatusResult[]>;
 
   // Broker metadata
+  /** Get the broker type */
   getBrokerType(): BrokerType;
+  /** Get the asset class this broker handles */
   getAssetClass(): AssetClass;
+  /** Get list of supported symbols */
   getSupportedSymbols(): string[];
 }
 
@@ -160,9 +205,25 @@ export interface TradovateContract {
   nightMargin: number;
 }
 
+/**
+ * Tradovate micro futures contract specifications
+ *
+ * NOTE: contractId values are set to 0 and must be replaced with actual
+ * Tradovate contract IDs before live trading. These can be obtained from:
+ * - Tradovate API: GET /md/contracts
+ * - Tradovate documentation
+ * - Contacting Tradovate support
+ *
+ * Example actual IDs (may vary by environment):
+ * - MNQ: ~423736194
+ * - MES: ~423736182
+ * - M2K: ~423736186
+ * - MCL: ~423736190
+ * - MGC: ~423736188
+ */
 export const TRADOVATE_CONTRACTS: Record<string, TradovateContract> = {
   MNQ: {
-    contractId: 0,
+    contractId: 0, // TODO: Replace with actual Tradovate contract ID
     symbol: 'MNQ',
     exchange: 'CME',
     product: 'Micro E-mini Nasdaq-100',
@@ -174,7 +235,7 @@ export const TRADOVATE_CONTRACTS: Record<string, TradovateContract> = {
     nightMargin: 4200,
   },
   MES: {
-    contractId: 0,
+    contractId: 0, // TODO: Replace with actual Tradovate contract ID
     symbol: 'MES',
     exchange: 'CME',
     product: 'Micro E-mini S&P 500',
@@ -186,7 +247,7 @@ export const TRADOVATE_CONTRACTS: Record<string, TradovateContract> = {
     nightMargin: 3000,
   },
   M2K: {
-    contractId: 0,
+    contractId: 0, // TODO: Replace with actual Tradovate contract ID
     symbol: 'M2K',
     exchange: 'CME',
     product: 'Micro E-mini Russell 2000',
@@ -198,7 +259,7 @@ export const TRADOVATE_CONTRACTS: Record<string, TradovateContract> = {
     nightMargin: 1700,
   },
   MCL: {
-    contractId: 0,
+    contractId: 0, // TODO: Replace with actual Tradovate contract ID
     symbol: 'MCL',
     exchange: 'NYMEX',
     product: 'Micro WTI Crude Oil',
@@ -210,7 +271,7 @@ export const TRADOVATE_CONTRACTS: Record<string, TradovateContract> = {
     nightMargin: 2400,
   },
   MGC: {
-    contractId: 0,
+    contractId: 0, // TODO: Replace with actual Tradovate contract ID
     symbol: 'MGC',
     exchange: 'COMEX',
     product: 'Micro Gold',
