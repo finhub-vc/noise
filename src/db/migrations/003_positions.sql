@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS positions (
   unrealized_pnl REAL NOT NULL,
   realized_pnl REAL DEFAULT 0,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'subpath') * 1000)
+  updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
 );
 
 CREATE INDEX IF NOT EXISTS idx_positions_symbol ON positions(symbol);

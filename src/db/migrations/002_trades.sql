@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS trades (
   signal_strength REAL,
   created_at INTEGER NOT NULL,
   filled_at INTEGER,
-  updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'subpath') * 1000)
+  updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
 );
 
 CREATE INDEX IF NOT EXISTS idx_trades_symbol ON trades(symbol);
