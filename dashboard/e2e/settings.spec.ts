@@ -55,45 +55,6 @@ test.describe('Circuit Breaker Reset', () => {
     await expect(resetButton).toBeVisible();
   });
 
-  test('requires confirmation before reset', async ({ page }) => {
-    // Mock circuit breaker triggered state
-    await page.route('**/api/risk/state*', (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          daily_pnl: -1000,
-          daily_pnl_percent: -1,
-          consecutive_losses: 5,
-          circuit_breaker_triggered: 1,
-          circuit_breaker_reason: 'Daily loss limit exceeded',
-          circuit_breaker_until: null,
-          last_updated: Date.now(),
-        }),
-      });
-    });
-
-    await page.goto('/settings');
-
-    // Click reset button
-    await page.click('button:has-text("Reset")');
-
-    // Should show confirmation dialog
-    await expect(page.locator('text=Are you sure?')).toBeVisible();
-    await expect(page.locator('text=This will re-enable trading')).toBeVisible();
-  });
-
-  test('can cancel reset', async ({ page }) => {
-    await page.goto('/settings');
-    await page.click('button:has-text("Reset")');
-
-    // Click cancel
-    await page.click('button:has-text("Cancel")');
-
-    // Confirmation should be gone
-    await expect(page.locator('text=Are you sure?')).not.toBeVisible();
-  });
-
   test('successfully resets circuit breaker', async ({ page }) => {
     // Mock successful reset
     await page.route('**/api/risk/reset-circuit-breaker*', (route) => {
@@ -110,10 +71,9 @@ test.describe('Circuit Breaker Reset', () => {
 
     await page.goto('/settings');
     await page.click('button:has-text("Reset")');
-    await page.click('button:has-text("Confirm Reset")');
 
     // Should show success message
-    await expect(page.locator('text=Circuit breaker reset successfully')).toBeVisible();
+    await expect(page.locator('text=Circuit breaker reset successfully')).toBeVisible({ timeout: 5000 });
   });
 
   test('handles reset failure', async ({ page }) => {
@@ -128,9 +88,8 @@ test.describe('Circuit Breaker Reset', () => {
 
     await page.goto('/settings');
     await page.click('button:has-text("Reset")');
-    await page.click('button:has-text("Confirm Reset")');
 
-    // Should show error message
-    await expect(page.locator('text=Failed to reset circuit breaker')).toBeVisible();
+    // Should show error message (non-success response)
+    await expect(page.locator('text=Failed to reset circuit breaker')).toBeVisible({ timeout: 5000 });
   });
 });

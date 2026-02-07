@@ -49,12 +49,12 @@ test.describe('Dashboard Navigation', () => {
   test('shows active navigation state', async ({ page }) => {
     await page.goto('/');
 
-    // Dashboard link should be green (active)
-    const dashboardLink = page.locator('a[href="/"]');
+    // Dashboard nav link should be green (active) - use nav container to be more specific
+    const dashboardLink = page.locator('nav a[href="/"]');
     await expect(dashboardLink).toHaveClass(/text-green-400/);
 
     // Other links should be gray (inactive)
-    const tradesLink = page.locator('a[href="/trades"]');
+    const tradesLink = page.locator('nav a[href="/trades"]');
     await expect(tradesLink).toHaveClass(/text-gray-400/);
   });
 });
@@ -82,8 +82,8 @@ test.describe('Account Summary', () => {
 
     await page.goto('/');
 
-    // Check for loading spinner
-    await expect(page.locator('.animate-spin')).toBeVisible();
+    // Check for loading spinner - use first() to handle multiple spinners
+    await expect(page.locator('.animate-spin').first()).toBeVisible();
   });
 
   test('handles API errors gracefully', async ({ page }) => {
