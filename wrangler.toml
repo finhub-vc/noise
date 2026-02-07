@@ -1,0 +1,49 @@
+name = "noise-trading-engine"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Routes for dashboard (optional)
+routes = [
+  { pattern = "api/*", zone_name = "" }
+]
+
+# Note: Cron triggers are configured via wrangler cron command
+# Example: wrangler cron test '0 * * * *' --name noise-trading-dev
+
+[env.development]
+name = "noise-trading-dev"
+vars = { ENVIRONMENT = "development", TRADOVATE_LIVE = "false", LOG_LEVEL = "debug" }
+
+[[env.development.d1_databases]]
+binding = "DB"
+database_name = "noise-trading-dev"
+database_id = "0cdd3310-90f6-4dd2-9576-351f184b3176"
+
+# Cron triggers for development
+[[env.development.queues.producers]]
+binding = "SIGNAL_QUEUE"
+queue = "signal-processing-queue"
+
+[env.production]
+name = "noise-trading-prod"
+vars = { ENVIRONMENT = "production", TRADOVATE_LIVE = "true", LOG_LEVEL = "info" }
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "noise-trading-prod"
+database_id = "c2e805f0-6564-4686-a8ab-e407c680499d"
+
+# Queue for async signal processing
+[[queues.producers]]
+binding = "SIGNAL_QUEUE"
+queue = "signal-processing-queue"
+
+# Limit configuration
+[limits]
+cpu_ms = 50000
+
+# Observability
+[observability]
+enabled = true
+head_sampling_rate = 1
