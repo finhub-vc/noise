@@ -1,0 +1,328 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="About NOISE - Algorithmic Trading Engine">
+  <section class="hero">
+    <div class="container">
+      <h1>About NOISE</h1>
+      <p class="tagline">Networked Optimization for Intelligent Signal Execution</p>
+    </div>
+  </section>
+
+  <section class="content">
+    <div class="container">
+      <div class="section">
+        <h2>What is NOISE?</h2>
+        <p>
+          NOISE (Networked Optimization for Intelligent Signal Execution) is a fully serverless
+          algorithmic trading engine designed to execute momentum, mean-reversion, and breakout
+          strategies across micro-futures and leveraged ETFs.
+        </p>
+        <p>
+          Built on Cloudflare's edge infrastructure, NOISE eliminates traditional server management
+          while providing institutional-grade risk management and signal generation capabilities.
+        </p>
+      </div>
+
+      <div class="section">
+        <h2>Technology Stack</h2>
+        <ul class="tech-list">
+          <li><strong>Compute:</strong> Cloudflare Workers (Edge-distributed serverless)</li>
+          <li><strong>Database:</strong> Cloudflare D1 (SQLite at the edge)</li>
+          <li><strong>Dashboard:</strong> React + Vite + Tailwind CSS</li>
+          <li><strong>Deployment:</strong> Cloudflare Pages</li>
+          <li><strong>Futures Broker:</strong> Tradovate API</li>
+          <li><strong>Equities Broker:</strong> Alpaca API</li>
+        </ul>
+      </div>
+
+      <div class="section">
+        <h2>Trading Strategies</h2>
+        <div class="strategy-grid">
+          <div class="strategy-card">
+            <h3>Momentum</h3>
+            <p class="weight">40% Weight</p>
+            <p>Combines RSI, MACD, ADX, and volume to profit from trending markets. Preferred in STRONG_TREND regimes.</p>
+          </div>
+          <div class="strategy-card">
+            <h3>Mean Reversion</h3>
+            <p class="weight">30% Weight</p>
+            <p>Uses Bollinger Bands and RSI to profit from ranging markets. Preferred in RANGING regimes.</p>
+          </div>
+          <div class="strategy-card">
+            <h3>Breakout</h3>
+            <p class="weight">30% Weight</p>
+            <p>Detects volatility squeezes and enters on breakouts with volume confirmation. Preferred in LOW_VOLATILITY regimes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Risk Management</h2>
+        <p>NOISE implements multiple layers of protection:</p>
+        <ul class="risk-list">
+          <li><strong>Position Sizing:</strong> Kelly criterion with volatility adjustment</li>
+          <li><strong>Per-Trade Risk:</strong> Maximum 2% of account equity</li>
+          <li><strong>Daily Loss Limit:</strong> Halt trading at 5% daily loss</li>
+          <li><strong>Weekly Loss Limit:</strong> Halt trading at 10% weekly loss</li>
+          <li><strong>Maximum Drawdown:</strong> 15% from equity peak</li>
+          <li><strong>Exposure Limits:</strong> Correlation-based concentration limits</li>
+          <li><strong>Circuit Breakers:</strong> Automatic trading halt on consecutive losses</li>
+        </ul>
+      </div>
+
+      <div class="section">
+        <h2>Performance Targets</h2>
+        <div class="metrics-grid">
+          <div class="metric">
+            <div class="value">10%</div>
+            <div class="label">Monthly Return Target</div>
+          </div>
+          <div class="metric">
+            <div class="value">55%+</div>
+            <div class="label">Target Win Rate</div>
+          </div>
+          <div class="metric">
+            <div class="value">1.5+</div>
+            <div class="label">Profit Factor</div>
+          </div>
+          <div class="metric">
+            <div class="value">15%</div>
+            <div class="label">Max Drawdown Limit</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Supported Instruments</h2>
+        <h3>Futures (via Tradovate)</h3>
+        <ul class="instruments-list">
+          <li><strong>MNQ:</strong> Micro E-mini Nasdaq-100</li>
+          <li><strong>MES:</strong> Micro E-mini S&P 500</li>
+          <li><strong>M2K:</strong> Micro E-mini Russell 2000</li>
+          <li><strong>MCL:</strong> Micro WTI Crude Oil</li>
+          <li><strong>MGC:</strong> Micro Gold</li>
+        </ul>
+
+        <h3>Equities (via Alpaca)</h3>
+        <ul class="instruments-list">
+          <li><strong>TQQQ:</strong> 3x Nasdaq-100 ETF</li>
+          <li><strong>SOXL:</strong> 3x Semiconductors ETF</li>
+          <li><strong>SPXL:</strong> 3x S&P 500 ETF</li>
+          <li><strong>TNA:</strong> 3x Russell 2000 ETF</li>
+          <li><strong>SPY:</strong> S&P 500 ETF</li>
+        </ul>
+      </div>
+
+      <div class="section">
+        <h2>Get Started</h2>
+        <p>
+          NOISE is currently in active development. Join the waitlist to be notified when we launch,
+          or check out the <a href="https://github.com/Andrejs1979/Noise">GitHub repository</a> to follow development.
+        </p>
+        <a href="/" class="btn">Back to Home</a>
+      </div>
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: white;
+    padding: 4rem 1rem;
+    text-align: center;
+  }
+
+  .hero h1 {
+    font-size: 3rem;
+    margin: 0 0 1rem 0;
+    background: linear-gradient(90deg, #38bdf8, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero .tagline {
+    font-size: 1.25rem;
+    color: #94a3b8;
+    margin: 0;
+  }
+
+  .content {
+    padding: 3rem 1rem;
+  }
+
+  .section {
+    max-width: 800px;
+    margin: 0 auto 3rem auto;
+  }
+
+  .section h2 {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+    color: #0f172a;
+  }
+
+  .section h3 {
+    font-size: 1.5rem;
+    margin: 2rem 0 1rem 0;
+    color: #0f172a;
+  }
+
+  .section p {
+    color: #64748b;
+    line-height: 1.7;
+    margin-bottom: 1rem;
+  }
+
+  .tech-list {
+    list-style: none;
+    padding: 0;
+  }
+
+  .tech-list li {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #e2e8f0;
+    color: #475569;
+  }
+
+  .tech-list li:last-child {
+    border-bottom: none;
+  }
+
+  .tech-list strong {
+    color: #0f172a;
+  }
+
+  .strategy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+  }
+
+  .strategy-card {
+    background: #f8fafc;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .strategy-card h3 {
+    font-size: 1.25rem;
+    margin: 0 0 0.5rem 0;
+    color: #0f172a;
+  }
+
+  .strategy-card .weight {
+    color: #38bdf8;
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin: 0 0 1rem 0;
+  }
+
+  .strategy-card p {
+    color: #64748b;
+    margin: 0;
+    font-size: 0.95rem;
+  }
+
+  .risk-list {
+    list-style: none;
+    padding: 0;
+  }
+
+  .risk-list li {
+    padding: 0.75rem 0;
+    color: #475569;
+  }
+
+  .risk-list strong {
+    color: #0f172a;
+  }
+
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+  }
+
+  .metric {
+    text-align: center;
+    background: #f8fafc;
+    padding: 1.5rem;
+    border-radius: 8px;
+  }
+
+  .metric .value {
+    font-size: 2.5rem;
+    font-weight: 800;
+    background: linear-gradient(90deg, #38bdf8, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .metric .label {
+    font-size: 0.9rem;
+    color: #64748b;
+    margin-top: 0.5rem;
+  }
+
+  .instruments-list {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 1.5rem;
+  }
+
+  .instruments-list li {
+    padding: 0.5rem 0;
+    color: #475569;
+  }
+
+  .instruments-list strong {
+    color: #0f172a;
+  }
+
+  .btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(90deg, #38bdf8, #818cf8);
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: opacity 0.2s;
+  }
+
+  .btn:hover {
+    opacity: 0.9;
+  }
+
+  a {
+    color: #38bdf8;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 768px) {
+    .hero h1 {
+      font-size: 2rem;
+    }
+
+    .section h2 {
+      font-size: 1.5rem;
+    }
+
+    .strategy-grid,
+    .metrics-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -13,4 +13,4 @@ export * from './signal.js';
 export * from './risk.js';
 
 // Database types
-export * from './database.js';
+export type { Trade, DBSignal, DBRiskState, DailyMetrics, EquityCurve, AuditLog, CreateTradeInput, CreateAuditLogInput, Position, TradeStatus, TradeSide, OrderType } from './database.js';

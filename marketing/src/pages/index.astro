@@ -1,0 +1,395 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="NOISE - Algorithmic Trading Engine">
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container">
+      <h1 class="title">NOISE</h1>
+      <p class="tagline">Networked Optimization for Intelligent Signal Execution</p>
+      <p class="subtitle">Serverless Algorithmic Trading Engine for Futures & Equities</p>
+    </div>
+  </section>
+
+  <!-- Features Grid -->
+  <section class="features">
+    <div class="container">
+      <h2>Key Features</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>Multi-Strategy Trading</h3>
+          <p>Momentum, mean-reversion, and breakout strategies with automatic regime detection</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h3>Fully Serverless</h3>
+          <p>Built on Cloudflare Workers for edge-distributed compute with zero server management</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🔒</div>
+          <h3>Advanced Risk Management</h3>
+          <p>Multi-layer circuit breakers with 2% max risk per trade and 15% max drawdown</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">⚖️</div>
+          <h3>Intelligent Position Sizing</h3>
+          <p>Kelly criterion and volatility-adjusted sizing for optimal risk/reward</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📈</div>
+          <h3>Dual-Broker Architecture</h3>
+          <p>Tradovate for futures (no PDT restrictions) and Alpaca for equities</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🎯</div>
+          <h3>10% Monthly Return Target</h3>
+          <p>Systematic signal generation targeting consistent monthly returns</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Benefits Section -->
+  <section class="benefits">
+    <div class="container">
+      <h2>Why NOISE?</h2>
+      <div class="benefits-list">
+        <div class="benefit">
+          <h3>✓ No Server Management</h3>
+          <p>Fully serverless architecture scales automatically without infrastructure overhead</p>
+        </div>
+        <div class="benefit">
+          <h3>✓ Institutional-Grade Risk Controls</h3>
+          <p>Daily/weekly loss limits, drawdown protection, and correlation-based exposure management</p>
+        </div>
+        <div class="benefit">
+          <h3>✓ 24/5 Futures Trading</h3>
+          <p>Extended trading hours with micro-futures contracts offering 20-25x leverage</p>
+        </div>
+        <div class="benefit">
+          <h3>✓ Pattern Day Trader Friendly</h3>
+          <p>Futures eliminate PDT restrictions - unlimited day trades with any account size</p>
+        </div>
+        <div class="benefit">
+          <h3>✓ Real-Time Monitoring Dashboard</h3>
+          <p>React-based dashboard for positions, P&L, signals, and system health</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Waitlist Section -->
+  <section class="waitlist">
+    <div class="container">
+      <h2>Get Early Access</h2>
+      <p class="waitlist-desc">Join the waitlist for NOISE algorithmic trading engine</p>
+
+      <form id="waitlist-form" class="waitlist-form">
+        <div class="form-group">
+          <label for="email">Email Address</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            required
+            placeholder="you@example.com"
+          />
+        </div>
+        <button type="submit" class="submit-btn">Join Waitlist</button>
+        <div id="form-message" class="form-message"></div>
+      </form>
+    </div>
+  </section>
+</Layout>
+
+<script>
+  const form = document.getElementById('waitlist-form') as HTMLFormElement;
+  const messageEl = document.getElementById('form-message') as HTMLDivElement;
+  const emailInput = document.getElementById('email') as HTMLInputElement;
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const email = emailInput.value;
+    const submitBtn = form.querySelector('.submit-btn') as HTMLButtonElement;
+
+    // Reset state
+    messageEl.className = 'form-message';
+    messageEl.textContent = 'Submitting...';
+    submitBtn.disabled = true;
+
+    try {
+      const response = await fetch('https://api.claude-remote.com/api/waitlist', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          projectRepo: 'github.com/Andrejs1979/Noise'
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        messageEl.classList.add('success');
+        messageEl.textContent = "You've been added to the waitlist! We'll be in touch soon.";
+        form.reset();
+      } else {
+        messageEl.classList.add('error');
+        messageEl.textContent = data.message || 'Something went wrong. Please try again.';
+      }
+    } catch (error) {
+      messageEl.classList.add('error');
+      messageEl.textContent = 'Network error. Please check your connection and try again.';
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+
+<style>
+  /* Hero Section */
+  .hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: white;
+    padding: 6rem 1rem;
+    text-align: center;
+  }
+
+  .hero .title {
+    font-size: 4rem;
+    font-weight: 800;
+    margin: 0 0 1rem 0;
+    letter-spacing: 0.2em;
+    background: linear-gradient(90deg, #38bdf8, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero .tagline {
+    font-size: 1.5rem;
+    margin: 0 0 0.5rem 0;
+    color: #94a3b8;
+  }
+
+  .hero .subtitle {
+    font-size: 1.25rem;
+    margin: 0;
+    color: #64748b;
+  }
+
+  /* Features Section */
+  .features {
+    padding: 5rem 1rem;
+    background: #f8fafc;
+  }
+
+  .features h2 {
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 3rem;
+    color: #0f172a;
+  }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .feature-card {
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .feature-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  }
+
+  .feature-icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .feature-card h3 {
+    font-size: 1.25rem;
+    margin: 0 0 0.75rem 0;
+    color: #0f172a;
+  }
+
+  .feature-card p {
+    margin: 0;
+    color: #64748b;
+    line-height: 1.6;
+  }
+
+  /* Benefits Section */
+  .benefits {
+    padding: 5rem 1rem;
+    background: white;
+  }
+
+  .benefits h2 {
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 3rem;
+    color: #0f172a;
+  }
+
+  .benefits-list {
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  .benefit {
+    padding: 1.5rem 0;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .benefit:last-child {
+    border-bottom: none;
+  }
+
+  .benefit h3 {
+    font-size: 1.25rem;
+    margin: 0 0 0.5rem 0;
+    color: #0f172a;
+  }
+
+  .benefit p {
+    margin: 0;
+    color: #64748b;
+    line-height: 1.6;
+  }
+
+  /* Waitlist Section */
+  .waitlist {
+    padding: 5rem 1rem;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: white;
+    text-align: center;
+  }
+
+  .waitlist h2 {
+    font-size: 2.5rem;
+    margin: 0 0 0.5rem 0;
+  }
+
+  .waitlist-desc {
+    font-size: 1.25rem;
+    color: #94a3b8;
+    margin-bottom: 2rem;
+  }
+
+  .waitlist-form {
+    max-width: 450px;
+    margin: 0 auto;
+    text-align: left;
+  }
+
+  .form-group {
+    margin-bottom: 1rem;
+  }
+
+  .form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #cbd5e1;
+    font-size: 0.9rem;
+  }
+
+  .form-group input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    background: #1e293b;
+    color: white;
+    font-size: 1rem;
+    box-sizing: border-box;
+  }
+
+  .form-group input:focus {
+    outline: none;
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+  }
+
+  .submit-btn {
+    width: 100%;
+    padding: 0.875rem;
+    background: linear-gradient(90deg, #38bdf8, #818cf8);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+
+  .submit-btn:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+
+  .submit-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .form-message {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+  }
+
+  .form-message.success {
+    background: rgba(34, 197, 94, 0.2);
+    border: 1px solid #22c55e;
+    color: #86efac;
+  }
+
+  .form-message.error {
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid #ef4444;
+    color: #fca5a5;
+  }
+
+  /* Container */
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 768px) {
+    .hero .title {
+      font-size: 2.5rem;
+    }
+
+    .hero .tagline {
+      font-size: 1.2rem;
+    }
+
+    .features-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .features h2,
+    .benefits h2,
+    .waitlist h2 {
+      font-size: 2rem;
+    }
+  }
+</style>
