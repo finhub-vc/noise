@@ -39,7 +39,7 @@ const router = Router();
 // Middleware
 // =============================================================================
 
-function authenticate(request: Request, env: Env): Response | null {
+async function authenticate(request: Request, env: Env): Promise<Response | null> {
   const authHeader = request.headers.get('Authorization');
 
   if (!authHeader) {
@@ -50,8 +50,21 @@ function authenticate(request: Request, env: Env): Response | null {
   }
 
   const token = authHeader.replace('Bearer ', '');
+  const expectedKey = env.NOISE_API_KEY;
 
-  if (token !== env.NOISE_API_KEY) {
+  if (!expectedKey) {
+    return new Response(JSON.stringify({ error: 'Server not configured' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Use crypto.subtle.timingSafeEqual for constant-time comparison
+  const tokenBuffer = new TextEncoder().encode(token);
+  const expectedBuffer = new TextEncoder().encode(expectedKey);
+
+  if (tokenBuffer.length !== expectedBuffer.length ||
+      !crypto.subtle.timingSafeEqual(tokenBuffer, expectedBuffer)) {
     return new Response(JSON.stringify({ error: 'Invalid API key' }), {
       status: 403,
       headers: { 'Content-Type': 'application/json' },
@@ -81,6 +94,11 @@ router.get('/api/health', () => {
     status: 'healthy',
     timestamp: Date.now(),
     version: '1.0.0',
+  }, {
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+    },
   });
 });
 
@@ -89,7 +107,7 @@ router.get('/api/health', () => {
 // =============================================================================
 
 router.get('/api/status', async (request: Request, env: Env) => {
-  const authError = authenticate(request, env);
+  const authError = await authenticate(request, env);
   if (authError) return authError;
 
   try {
@@ -132,7 +150,7 @@ router.get('/api/status', async (request: Request, env: Env) => {
 // =============================================================================
 
 router.get('/api/account', async (request: Request, env: Env) => {
-  const authError = authenticate(request, env);
+  const authError = await authenticate(request, env);
   if (authError) return authError;
 
   try {
@@ -159,7 +177,7 @@ router.get('/api/account', async (request: Request, env: Env) => {
 // =============================================================================
 
 router.get('/api/positions', async (request: Request, env: Env) => {
-  const authError = authenticate(request, env);
+  const authError = await authenticate(request, env);
   if (authError) return authError;
 
   try {
@@ -183,7 +201,7 @@ router.get('/api/positions', async (request: Request, env: Env) => {
 // =============================================================================
 
 router.get('/api/trades/today', async (request: Request, env: Env) => {
-  const authError = authenticate(request, env);
+  const authError = await authenticate(request, env);
   if (authError) return authError;
 
   try {
@@ -211,7 +229,7 @@ router.get('/api/trades/today', async (request: Request, env: Env) => {
 // =============================================================================
 
 router.get('/api/signals/active', async (request: Request, env: Env) => {
-  const authError = authenticate(request, env);
+  const authError = await authenticate(request, env);
   if (authError) return authError;
 
   try {
@@ -236,7 +254,7 @@ router.get('/api/signals/active', async (request: Request, env: Env) => {
 // =============================================================================
 
 router.get('/api/risk/state', async (request: Request, env: Env) => {
-  const authError = authenticate(request, env);
+  const authError = await authenticate(request, env);
   if (authError) return authError;
 
   try {
@@ -252,7 +270,7 @@ router.get('/api/risk/state', async (request: Request, env: Env) => {
 });
 
 router.post('/api/risk/reset-circuit-breaker', async (request: Request, env: Env) => {
-  const authError = authenticate(request, env);
+  const authError = await authenticate(request, env);
   if (authError) return authError;
 
   try {
@@ -278,7 +296,7 @@ router.post('/api/risk/reset-circuit-breaker', async (request: Request, env: Env
 // =============================================================================
 
 router.get('/api/audit', async (request: Request, env: Env) => {
-  const authError = authenticate(request, env);
+  const authError = await authenticate(request, env);
   if (authError) return authError;
 
   try {
