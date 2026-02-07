@@ -3,7 +3,7 @@
  * Cloudflare Worker with API routes and scheduled tasks
  */
 
-import { Router } from 'itty-router';
+import { AutoRouter } from 'itty-router';
 import { createLogger } from './utils/index.js';
 import {
   corsPreflightResponse,
@@ -105,7 +105,33 @@ interface RiskStateRow {
 // Router Setup
 // =============================================================================
 
-const router = Router();
+const router = AutoRouter({
+  before: [
+    (request: Request, env: Env) => {
+      // Handle CORS preflight
+      if (request.method === 'OPTIONS') {
+        return corsPreflightResponse(request, env.ENVIRONMENT);
+      }
+      return undefined; // Continue to next handler
+    },
+  ],
+  catch: (error: unknown) => {
+    log.error('Request handler error', error as Error);
+    return Response.json(
+      { error: 'Internal server error', message: (error as Error).message },
+      { status: 500 }
+    );
+  },
+  finally: [
+    (response: Response, request: Request, env: Env) => {
+      // Add CORS headers to all responses
+      if (response && typeof response !== 'string') {
+        return withApiHeaders(response.clone(), request, env.ENVIRONMENT);
+      }
+      return response;
+    },
+  ],
+});
 
 // =============================================================================
 // Middleware
@@ -989,13 +1015,6 @@ router.post('/api/quotes', async (request: Request, env: Env) => {
 });
 
 // =============================================================================
-// CORS
-// =============================================================================
-
-// Use enhanced CORS middleware
-router.options('*', (request: Request, env: Env) => corsPreflightResponse(request, env.ENVIRONMENT));
-
-// =============================================================================
 // Scheduled Task - Signal Processing
 // =============================================================================
 
@@ -1016,20 +1035,6 @@ export async function scheduled(_event: ScheduledEvent, _env: Env, _ctx: Executi
 // =============================================================================
 
 export default {
-  fetch: (request: Request, env: Env, _ctx: ExecutionContext) => {
-    // Handle CORS preflight
-    if (request.method === 'OPTIONS') {
-      return corsPreflightResponse(request, env.ENVIRONMENT);
-    }
-
-    return router.handle(request, env).catch((error: unknown) => {
-      log.error('Request handler error', error as Error);
-      return Response.json(
-        { error: 'Internal server error', message: (error as Error).message },
-        { status: 500 }
-      );
-    });
-  },
-
+  ...router,
   scheduled,
 };
