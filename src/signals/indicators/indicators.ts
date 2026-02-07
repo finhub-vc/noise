@@ -210,7 +210,7 @@ export function calculateBollingerBands(
       upper: mean + stdDev * std,
       middle: mean,
       lower: mean - stdDev * std,
-      bandwidth: (std * 2 * stdDev) / mean,
+      bandwidth: mean > 0 ? (std * 2 * stdDev) / mean : 0,
       squeeze: false, // Will be set after calculating average bandwidth
     });
 

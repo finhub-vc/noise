@@ -55,7 +55,6 @@ export class MeanReversionStrategy {
     const now = Date.now();
 
     // Calculate position within bands (0 = lower band, 1 = upper band)
-    const bandPosition = (latestBar.close - latestBB.lower) / (latestBB.upper - latestBB.lower);
     const bandPercentile = (latestBar.close - latestBB.lower) / (latestBB.upper - latestBB.lower);
 
     // RSI analysis
