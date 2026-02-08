@@ -27,3 +27,7 @@ export {
   type RealtimeUpdate,
   type UpdateCallback,
 } from './RealTimeDataFeed.js';
+
+// Broker market data provider is exported from brokers module
+// Re-export for convenience
+export type { BrokerMarketDataProvider } from '../../brokers/marketData/BrokerMarketDataProvider.js';

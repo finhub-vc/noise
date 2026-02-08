@@ -136,3 +136,34 @@ export const TRADOVATE_URLS = {
   DEMO: 'https://demo.tradovateapi.com/v1',
   LIVE: 'https://live.tradovateapi.com/v1',
 };
+
+// =============================================================================
+// Market Data Types
+// =============================================================================
+
+export interface TradovateQuote {
+  contractId: number;
+  lastTrade: number;
+  bidPrice: number;
+  askPrice: number;
+  bidSize: number;
+  askSize: number;
+  volume: number;
+  timestamp: number;
+}
+
+export interface TradovateOHLC {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface TradovateHistoryRequest {
+  contractId: number;
+  barsCount: number;
+  barType: string; // 'Minute' | 'Hour' | 'Day'
+  interval: number; // 1, 5, 15, 60, etc.
+}
