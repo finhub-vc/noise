@@ -14,6 +14,7 @@ import type {
   PositionSide,
 } from '@/types/broker.js';
 import type { BrokerAdapter } from '../interfaces.js';
+import type { TradovateQuote, TradovateOHLC } from './types.js';
 import { TradovateAuth } from './auth.js';
 import { TRADOVATE_CONTRACTS, TRADOVATE_URLS } from './types.js';
 import { createLogger, retryWithBackoff, BrokerError, OrderRejectedError } from '@/utils/index.js';
@@ -256,5 +257,137 @@ export class TradovateAdapter implements BrokerAdapter {
       'Rejected': 'CANCELLED',
     };
     return map[status] || 'PENDING';
+  }
+
+  // -------------------------------------------------------------------------
+  // Market Data Methods
+  // -------------------------------------------------------------------------
+
+  /**
+   * Fetch current quote for a symbol
+   */
+  async getQuote(symbol: string): Promise<TradovateQuote | null> {
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new BrokerError('Not authenticated');
+
+    const contract = TRADOVATE_CONTRACTS[symbol];
+    if (!contract) {
+      log.warn(`Unknown symbol for quote: ${symbol}`);
+      return null;
+    }
+
+    try {
+      const response = await this.fetchWithAuth('/md/getQuote', {
+        method: 'POST',
+        body: JSON.stringify({ contractId: contract.contractId }),
+      });
+
+      if (!response.ok) {
+        throw new BrokerError(`Failed to get quote: ${response.status}`);
+      }
+
+      const data = await response.json() as TradovateQuote;
+      return data;
+    } catch (error) {
+      log.error(`Failed to fetch quote for ${symbol}`, error as Error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch quotes for multiple symbols
+   */
+  async getQuotes(symbols: string[]): Promise<Map<string, TradovateQuote>> {
+    const result = new Map<string, TradovateQuote>();
+
+    await Promise.all(
+      symbols.map(async (symbol) => {
+        const quote = await this.getQuote(symbol);
+        if (quote) {
+          result.set(symbol, quote);
+        }
+      })
+    );
+
+    return result;
+  }
+
+  /**
+   * Fetch historical OHLCV data
+   * @param symbol Contract symbol
+   * @param timeframe Timeframe in minutes (1, 5, 15, 60, 1440 for daily)
+   * @param limit Number of bars to fetch
+   */
+  async getHistoricalData(
+    symbol: string,
+    timeframe: number,
+    limit: number = 100
+  ): Promise<TradovateOHLC[]> {
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new BrokerError('Not authenticated');
+
+    const contract = TRADOVATE_CONTRACTS[symbol];
+    if (!contract) {
+      throw new BrokerError(`Unknown symbol: ${symbol}`);
+    }
+
+    // Determine bar type and interval
+    let barType = 'Minute';
+    let interval = timeframe;
+
+    if (timeframe >= 1440) {
+      barType = 'Day';
+      interval = 1;
+    } else if (timeframe >= 60) {
+      barType = 'Hour';
+      interval = Math.floor(timeframe / 60);
+    }
+
+    try {
+      const response = await this.fetchWithAuth('/chart/history', {
+        method: 'POST',
+        body: JSON.stringify({
+          contractId: contract.contractId,
+          barsCount: limit,
+          barType,
+          interval,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new BrokerError(`Failed to get history: ${response.status}`);
+      }
+
+      const data = await response.json() as unknown;
+      const bars = (data as Record<string, unknown>).bars as TradovateOHLC[] | undefined;
+
+      return bars || [];
+    } catch (error) {
+      log.error(`Failed to fetch historical data for ${symbol}`, error as Error);
+      throw new BrokerError(`Historical data fetch failed: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Get real-time market data for a symbol
+   * Returns the latest price with timestamp
+   */
+  async getMarketData(symbol: string): Promise<{
+    last: number;
+    bid: number;
+    ask: number;
+    volume: number;
+    timestamp: number;
+  } | null> {
+    const quote = await this.getQuote(symbol);
+    if (!quote) return null;
+
+    return {
+      last: quote.lastTrade,
+      bid: quote.bidPrice,
+      ask: quote.askPrice,
+      volume: quote.volume,
+      timestamp: quote.timestamp,
+    };
   }
 }

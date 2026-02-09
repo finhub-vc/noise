@@ -16,6 +16,29 @@ import type {
 import type { BrokerAdapter } from '../interfaces.js';
 import { createLogger, retryWithBackoff, BrokerError, OrderRejectedError } from '@/utils/index.js';
 
+// =============================================================================
+// Market Data Types
+// =============================================================================
+
+interface AlpacaQuote {
+  symbol: string;
+  bid_price: number;
+  ask_price: number;
+  last_trade_price: number;
+  last_exchange: string;
+  last_size: number;
+  timestamp: string;
+}
+
+interface AlpacaBar {
+  t: string;  // ISO 8601 datetime
+  o: number;  // Open
+  h: number;  // High
+  l: number;  // Low
+  c: number;  // Close
+  v: number;  // Volume
+}
+
 const log = createLogger('ALPACA_ADAPTER');
 
 export class AlpacaCredentials {
@@ -239,6 +262,148 @@ export class AlpacaAdapter implements BrokerAdapter {
       'stopped': 'CANCELLED',
     };
     return map[status] || 'PENDING';
+  }
+
+  // -------------------------------------------------------------------------
+  // Market Data Methods
+  // -------------------------------------------------------------------------
+
+  /**
+   * Fetch current quote for a symbol
+   */
+  async getQuote(symbol: string): Promise<AlpacaQuote | null> {
+    try {
+      const response = await this.fetchWithAuth(`/v2/stocks/${symbol}/quotes/latest`);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          log.warn(`Symbol not found: ${symbol}`);
+          return null;
+        }
+        throw new BrokerError(`Failed to get quote: ${response.status}`);
+      }
+
+      const data = await response.json() as { quote: AlpacaQuote };
+      return data.quote;
+    } catch (error) {
+      log.error(`Failed to fetch quote for ${symbol}`, error as Error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch quotes for multiple symbols
+   */
+  async getQuotes(symbols: string[]): Promise<Map<string, AlpacaQuote>> {
+    const result = new Map<string, AlpacaQuote>();
+
+    // Alpaca supports snapshot endpoint for multiple symbols
+    try {
+      const symbolsParam = symbols.join(',');
+      const response = await this.fetchWithAuth(`/v2/stocks/snapshot?symbols=${symbolsParam}`);
+
+      if (!response.ok) {
+        // Fallback to individual requests
+        log.warn('Batch quotes failed, falling back to individual requests');
+        return this.getQuotesIndividually(symbols);
+      }
+
+      const data = await response.json() as Record<string, { latestQuote: AlpacaQuote } | null>;
+
+      for (const [symbol, snapshot] of Object.entries(data)) {
+        if (snapshot?.latestQuote) {
+          result.set(symbol, snapshot.latestQuote);
+        }
+      }
+    } catch (error) {
+      log.error('Failed to fetch batch quotes', error as Error);
+      return this.getQuotesIndividually(symbols);
+    }
+
+    return result;
+  }
+
+  private async getQuotesIndividually(symbols: string[]): Promise<Map<string, AlpacaQuote>> {
+    const result = new Map<string, AlpacaQuote>();
+
+    await Promise.all(
+      symbols.map(async (symbol) => {
+        const quote = await this.getQuote(symbol);
+        if (quote) {
+          result.set(symbol, quote);
+        }
+      })
+    );
+
+    return result;
+  }
+
+  /**
+   * Fetch historical OHLCV data
+   * @param symbol Stock symbol
+   * @param timeframe Timeframe in minutes (1, 5, 15, 60, 1440 for daily)
+   * @param limit Number of bars to fetch
+   */
+  async getHistoricalData(
+    symbol: string,
+    timeframe: number,
+    limit: number = 100
+  ): Promise<AlpacaBar[]> {
+    // Map timeframe to Alpaca timespan
+    let timespan = 'minute';
+    let multiplier = 1;
+
+    if (timeframe >= 1440) {
+      timespan = 'day';
+      multiplier = 1;
+    } else if (timeframe >= 60) {
+      timespan = 'hour';
+      multiplier = Math.floor(timeframe / 60);
+    } else {
+      multiplier = timeframe;
+    }
+
+    try {
+      const url = new URL(`${this.credentials.baseUrl}/v2/stocks/${symbol}/bars`);
+      url.searchParams.set('timeframe', `${multiplier}${timespan}`);
+      url.searchParams.set('limit', limit.toString());
+      url.searchParams.set('adjustment', 'raw'); // No adjustment for splits/dividends
+
+      const response = await this.fetchWithAuth(url.pathname + url.search);
+
+      if (!response.ok) {
+        throw new BrokerError(`Failed to get history: ${response.status}`);
+      }
+
+      const data = await response.json() as { bars: AlpacaBar[] | null };
+      return data.bars || [];
+    } catch (error) {
+      log.error(`Failed to fetch historical data for ${symbol}`, error as Error);
+      throw new BrokerError(`Historical data fetch failed: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Get real-time market data for a symbol
+   * Returns the latest price with timestamp
+   */
+  async getMarketData(symbol: string): Promise<{
+    last: number;
+    bid: number;
+    ask: number;
+    volume: number;
+    timestamp: number;
+  } | null> {
+    const quote = await this.getQuote(symbol);
+    if (!quote) return null;
+
+    return {
+      last: quote.last_trade_price,
+      bid: quote.bid_price,
+      ask: quote.ask_price,
+      volume: quote.last_size,
+      timestamp: new Date(quote.timestamp).getTime(),
+    };
   }
 }
 
