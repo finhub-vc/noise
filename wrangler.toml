@@ -3,11 +3,7 @@ main = "src/index.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Routes for dashboard (optional)
-routes = [
-  { pattern = "api/*", zone_name = "" }
-]
-
+# Note: Routes configured when custom domain is added
 # Note: Cron triggers are configured via wrangler cron command
 # Example: wrangler cron test '0 * * * *' --name noise-trading-dev
 
@@ -22,6 +18,20 @@ database_id = "0cdd3310-90f6-4dd2-9576-351f184b3176"
 
 # Cron triggers for development
 [[env.development.queues.producers]]
+binding = "SIGNAL_QUEUE"
+queue = "signal-processing-queue"
+
+[env.staging]
+name = "noise-trading-staging"
+vars = { ENVIRONMENT = "staging", TRADOVATE_LIVE = "false", LOG_LEVEL = "debug" }
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "noise-trading-staging"
+database_id = "c4264e3a-ecd8-4cdb-a583-f0a5dd2f24b4"
+
+# Cron triggers for staging
+[[env.staging.queues.producers]]
 binding = "SIGNAL_QUEUE"
 queue = "signal-processing-queue"
 

@@ -477,11 +477,7 @@ router.get('/api/signals', async (request: Request, env: Env) => {
     query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
-    const stmt = env.DB.prepare(query);
-    for (let i = 0; i < params.length; i++) {
-      stmt.bind(params[i]);
-    }
-    const signals = await stmt.all();
+    const signals = await env.DB.prepare(query).bind(...params).all();
 
     // Get total count
     let countQuery = 'SELECT COUNT(*) as count FROM signals WHERE 1=1';
@@ -499,11 +495,7 @@ router.get('/api/signals', async (request: Request, env: Env) => {
       countParams.push(status);
     }
 
-    const countStmt = env.DB.prepare(countQuery);
-    for (let i = 0; i < countParams.length; i++) {
-      countStmt.bind(countParams[i]);
-    }
-    const countResult = await countStmt.first();
+    const countResult = await env.DB.prepare(countQuery).bind(...countParams).first();
 
     return Response.json({
       signals: signals.results || [],
@@ -719,11 +711,7 @@ router.get('/api/trades', async (request: Request, env: Env) => {
     query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
-    const stmt = env.DB.prepare(query);
-    for (let i = 0; i < params.length; i++) {
-      stmt.bind(params[i]);
-    }
-    const trades = await stmt.all();
+    const trades = await env.DB.prepare(query).bind(...params).all();
 
     return Response.json({
       trades: trades.results || [],
