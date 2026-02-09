@@ -3,11 +3,6 @@ main = "src/index.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Routes for dashboard (optional)
-routes = [
-  { pattern = "api/*", zone_name = "" }
-]
-
 # Note: Cron triggers are configured via wrangler cron command
 # Example: wrangler cron test '0 * * * *' --name noise-trading-dev
 
@@ -20,11 +15,6 @@ binding = "DB"
 database_name = "noise-trading-dev"
 database_id = "0cdd3310-90f6-4dd2-9576-351f184b3176"
 
-# Cron triggers for development
-[[env.development.queues.producers]]
-binding = "SIGNAL_QUEUE"
-queue = "signal-processing-queue"
-
 [env.production]
 name = "noise-trading-prod"
 vars = { ENVIRONMENT = "production", TRADOVATE_LIVE = "true", LOG_LEVEL = "info" }
@@ -33,11 +23,6 @@ vars = { ENVIRONMENT = "production", TRADOVATE_LIVE = "true", LOG_LEVEL = "info"
 binding = "DB"
 database_name = "noise-trading-prod"
 database_id = "c2e805f0-6564-4686-a8ab-e407c680499d"
-
-# Queue for async signal processing
-[[queues.producers]]
-binding = "SIGNAL_QUEUE"
-queue = "signal-processing-queue"
 
 # Limit configuration
 [limits]
