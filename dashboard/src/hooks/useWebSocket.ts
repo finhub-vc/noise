@@ -10,6 +10,27 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 
+// Get API base URL from environment or use deployed worker
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://noise-trading-dev.finhub.workers.dev';
+
+/**
+ * Get full API URL
+ * Uses relative path for development (with Vite proxy)
+ * Uses full URL for production
+ */
+function getApiUrl(path: string): string {
+  // If it's already a full URL, return as-is
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+  // In development, use relative path for Vite proxy
+  // In production, use the deployed API URL
+  if (import.meta.env.DEV) {
+    return path;
+  }
+  return `${API_BASE_URL}${path}`;
+}
+
 export interface WebSocketConfig {
   enabled?: boolean;
   reconnectInterval?: number;
@@ -52,14 +73,14 @@ export function useWebSocket(config: WebSocketConfig = {}) {
       pollingIntervalRef.current = setInterval(async () => {
         try {
           // Poll for position updates
-          const positionsResponse = await fetch('/api/positions');
+          const positionsResponse = await fetch(getApiUrl('/api/positions'));
           if (positionsResponse.ok) {
             const positionsData = await positionsResponse.json();
             notifyHandlers({ type: 'positions', data: positionsData });
           }
 
           // Poll for signal updates
-          const signalsResponse = await fetch('/api/signals/active');
+          const signalsResponse = await fetch(getApiUrl('/api/signals/active'));
           if (signalsResponse.ok) {
             const signalsData = await signalsResponse.json();
             notifyHandlers({ type: 'signals', data: signalsData });

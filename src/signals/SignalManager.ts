@@ -1,7 +1,7 @@
 /**
  * Signal Manager
  * Orchestrates signal generation from all strategies
- * Applies regime and time filters before outputting signals
+ * Applies regime, time, and sentiment filters before outputting signals
  */
 
 import type { Signal, MarketRegime, Timeframe, AssetClass, PriceBar } from '@/types/signal.js';
@@ -11,6 +11,8 @@ import { BreakoutStrategy } from './strategies/BreakoutStrategy.js';
 import { RegimeDetector } from './RegimeDetector.js';
 import { TimeFilter } from './TimeFilter.js';
 import type { StrategyInput } from './strategies/types.js';
+import { getSentimentFilter } from '@/sentiment/index.js';
+import type { SentimentConfig, SentimentFilterOptions } from '@/sentiment/index.js';
 import { createLogger } from '@/utils/index.js';
 
 const log = createLogger('SIGNAL_MANAGER');
@@ -24,6 +26,8 @@ export interface SignalManagerConfig {
   enableRegimeFilter: boolean;
   enableTimeFilter: boolean;
   enableVolatilityFilter: boolean;
+  enableSentimentFilter: boolean;
+  sentimentConfig?: SentimentConfig;
   minStrength: number;
   maxSignalsPerSymbol: number;
 }
@@ -37,6 +41,7 @@ const DEFAULT_CONFIG: SignalManagerConfig = {
   enableRegimeFilter: true,
   enableTimeFilter: true,
   enableVolatilityFilter: true,
+  enableSentimentFilter: false, // Disabled by default, requires news API
   minStrength: 0.6,
   maxSignalsPerSymbol: 2,
 };
@@ -133,8 +138,15 @@ export class SignalManager {
     // Combine conflicting signals
     const combinedSignals = this.combineSignals(strongSignals);
 
+    // Apply sentiment filter if enabled
+    let sentimentFilteredSignals = combinedSignals;
+    if (this.config.enableSentimentFilter) {
+      sentimentFilteredSignals = await this.applySentimentFilter(combinedSignals, input.symbol);
+      log.debug(`Sentiment filter: ${combinedSignals.length} -> ${sentimentFilteredSignals.length} signals`);
+    }
+
     // Limit signals per symbol
-    const limitedSignals = combinedSignals
+    const limitedSignals = sentimentFilteredSignals
       .sort((a, b) => b.strength - a.strength)
       .slice(0, this.config.maxSignalsPerSymbol);
 
@@ -214,6 +226,67 @@ export class SignalManager {
    * Validate an existing signal (check if still valid)
    */
   validateSignal(signal: Signal): boolean {
+    const now = Date.now();
+
+    // Check expiry
+    if (now > signal.expiresAt) {
+      return false;
+    }
+
+    // Check time filter
+    if (this.config.enableTimeFilter) {
+      const timeCheck = this.timeFilter.isAllowedTime(signal.assetClass);
+      if (!timeCheck.allowed) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Apply sentiment filter to signals
+   */
+  private async applySentimentFilter(signals: Signal[], symbol: string): Promise<Signal[]> {
+    const sentimentFilter = getSentimentFilter();
+    const filteredSignals: Signal[] = [];
+
+    for (const signal of signals) {
+      try {
+        const result = await sentimentFilter.filterSignal(
+          symbol,
+          signal.direction,
+          signal.strength
+        );
+
+        if (result.shouldBlock) {
+          log.debug(`Signal blocked by sentiment filter: ${result.reason}`);
+          continue;
+        }
+
+        // Update signal strength based on sentiment
+        filteredSignals.push({
+          ...signal,
+          strength: result.adjustedStrength,
+          // Add metadata about sentiment adjustment
+          metadata: {
+            ...signal.metadata,
+            sentiment: {
+              direction: result.sentiment.overallSentiment,
+              score: result.sentiment.overallScore,
+              newsCount: result.sentiment.newsCount,
+            },
+          },
+        });
+      } catch (error) {
+        log.error('Sentiment filter error', error as Error);
+        // On error, keep original signal
+        filteredSignals.push(signal);
+      }
+    }
+
+    return filteredSignals;
+  }
     const now = Date.now();
 
     // Check expiry

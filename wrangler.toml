@@ -3,10 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Routes for dashboard (optional)
-routes = [
-  { pattern = "api/*", zone_name = "" }
-]
+# Routes for dashboard (optional) - comment out for worker.dev deployment
+# routes = [
+#   { pattern = "api/*", zone_name = "" }
+# ]
 
 # Note: Cron triggers are configured via wrangler cron command
 # Example: wrangler cron test '0 * * * *' --name noise-trading-dev
