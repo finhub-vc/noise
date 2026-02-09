@@ -47,11 +47,10 @@ export function useWebSocket(config: WebSocketConfig = {}) {
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Update mode in status
+  // Update mode in status - stable function that captures wsRef
   const setStatusWithMode = useCallback((updates: Partial<WebSocketStatus>) => {
     setStatus((prev) => {
-      const mode = updates.mode ||
-        (updates.connected ? (wsRef.current ? 'websocket' : 'polling') : 'disconnected');
+      const mode = updates.mode || 'disconnected';
       return { ...prev, ...updates, mode };
     });
   }, []);
@@ -134,7 +133,7 @@ export function useWebSocket(config: WebSocketConfig = {}) {
 
     // Fallback to HTTP polling
     startPolling();
-  }, [enabled, preferPolling, reconnectInterval, pollingInterval, setStatusWithMode]);
+  }, [enabled, preferPolling, reconnectInterval, pollingInterval]);
 
   // Start HTTP polling
   const startPolling = useCallback(() => {
@@ -182,7 +181,7 @@ export function useWebSocket(config: WebSocketConfig = {}) {
 
     setStatusWithMode({ connected: true, connecting: false, error: null, mode: 'polling' });
     notifyConnectionChange(true);
-  }, [pollingInterval, setStatusWithMode]);
+  }, [pollingInterval]);
 
   // Disconnect
   const disconnect = useCallback(() => {
@@ -206,7 +205,7 @@ export function useWebSocket(config: WebSocketConfig = {}) {
 
     setStatus({ connected: false, connecting: false, error: null, mode: 'disconnected' });
     notifyConnectionChange(false);
-  }, [setStatusWithMode]);
+  }, []);
 
   // Send message
   const send = useCallback((data: unknown) => {

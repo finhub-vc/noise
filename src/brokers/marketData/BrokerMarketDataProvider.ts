@@ -11,20 +11,45 @@ import { createLogger } from '../../utils/index.js';
 const log = createLogger('BROKER_MD_PROVIDER');
 
 // =============================================================================
+// Constants
+// =============================================================================
+
+/** Default cache TTL for historical data (60 seconds) */
+const DEFAULT_CACHE_TTL_MS = 60_000;
+
+/** Default cache TTL for quotes (5 seconds) */
+const DEFAULT_QUOTE_CACHE_TTL_MS = 5_000;
+
+/** Futures symbols that route to Tradovate */
+const FUTURES_SYMBOLS = ['MNQ', 'MES', 'M2K', 'MCL', 'MGC', 'NQ', 'ES', 'RTY', 'CL', 'GC'] as const;
+
+/** Regex pattern for futures contract months (e.g., NQH25, ESM4) */
+const FUTURES_CONTRACT_PATTERN = /^(MNQ|MES|M2K|MCL|MGC|NQ|ES|RTY|CL|GC)[FGHJKMNQUVXZ]\d{1,2}$/;
+
+/** Default timeframe in minutes when parsing fails */
+const DEFAULT_TIMEFRAME_MINUTES = 15;
+
+/** Maximum symbols per batch request to prevent API overwhelming */
+const MAX_BATCH_SYMBOLS = 100;
+
+// =============================================================================
 // Broker Market Data Provider
 // =============================================================================
 
 export class BrokerMarketDataProvider extends MarketDataProvider {
   private dataCache = new Map<string, { data: OHLCV[]; timestamp: number }>();
   private quoteCache = new Map<string, { quote: Quote; timestamp: number }>();
-  private readonly CACHE_TTL = 60000; // 1 minute for historical data
-  private readonly QUOTE_CACHE_TTL = 5000; // 5 seconds for quotes
+  private readonly cacheTtlMs: number;
+  private readonly quoteCacheTtlMs: number;
 
   constructor(
     private tradovateAdapter: BrokerAdapter | null = null,
-    private alpacaAdapter: BrokerAdapter | null = null
+    private alpacaAdapter: BrokerAdapter | null = null,
+    options?: { cacheTtlMs?: number; quoteCacheTtlMs?: number }
   ) {
     super();
+    this.cacheTtlMs = options?.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS;
+    this.quoteCacheTtlMs = options?.quoteCacheTtlMs ?? DEFAULT_QUOTE_CACHE_TTL_MS;
   }
 
   // -------------------------------------------------------------------------
@@ -33,8 +58,13 @@ export class BrokerMarketDataProvider extends MarketDataProvider {
 
   private getAdapterForSymbol(symbol: string): BrokerAdapter | null {
     // Futures symbols go to Tradovate
-    const futuresSymbols = ['MNQ', 'MES', 'M2K', 'MCL', 'MGC', 'NQ', 'ES', 'RTY', 'CL', 'GC'];
-    if (futuresSymbols.some(s => symbol.startsWith(s) || symbol === s)) {
+    // Check for exact match first (e.g., "MNQ", "ES")
+    if (FUTURES_SYMBOLS.some(s => symbol === s)) {
+      return this.tradovateAdapter;
+    }
+
+    // Check for futures contract pattern (e.g., "NQH25", "ESM4")
+    if (FUTURES_CONTRACT_PATTERN.test(symbol)) {
       return this.tradovateAdapter;
     }
 
@@ -56,7 +86,7 @@ export class BrokerMarketDataProvider extends MarketDataProvider {
     // Check cache
     const cacheKey = `${symbol}-${timeframe}-${limit}`;
     const cached = this.dataCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+    if (cached && Date.now() - cached.timestamp < this.cacheTtlMs) {
       return cached.data;
     }
 
@@ -128,8 +158,8 @@ export class BrokerMarketDataProvider extends MarketDataProvider {
   private parseTimeframeToMinutes(timeframe: string): number {
     const match = timeframe.match(/^(\d+)([mhd])$/i);
     if (!match) {
-      log.warn(`Invalid timeframe format: ${timeframe}, defaulting to 15m`);
-      return 15;
+      log.warn(`Invalid timeframe format: ${timeframe}, defaulting to ${DEFAULT_TIMEFRAME_MINUTES}m`);
+      return DEFAULT_TIMEFRAME_MINUTES;
     }
 
     const value = parseInt(match[1], 10);
@@ -139,7 +169,7 @@ export class BrokerMarketDataProvider extends MarketDataProvider {
       case 'm': return value;
       case 'h': return value * 60;
       case 'd': return value * 1440;
-      default: return 15;
+      default: return DEFAULT_TIMEFRAME_MINUTES;
     }
   }
 
@@ -150,7 +180,7 @@ export class BrokerMarketDataProvider extends MarketDataProvider {
   async fetchQuote(symbol: string): Promise<Quote | null> {
     // Check cache (shorter TTL for quotes)
     const cached = this.quoteCache.get(symbol);
-    if (cached && Date.now() - cached.timestamp < this.QUOTE_CACHE_TTL) {
+    if (cached && Date.now() - cached.timestamp < this.quoteCacheTtlMs) {
       return cached.quote;
     }
 
@@ -209,32 +239,37 @@ export class BrokerMarketDataProvider extends MarketDataProvider {
   ): Promise<void> {
     if (!adapter || symbols.length === 0) return;
 
-    if ('getQuotes' in adapter && typeof adapter.getQuotes === 'function') {
-      try {
-        const quotes = await (adapter as { getQuotes: (symbols: string[]) => Promise<Map<string, unknown>> })
-          .getQuotes(symbols);
+    // Process in batches to prevent overwhelming the API
+    for (let i = 0; i < symbols.length; i += MAX_BATCH_SYMBOLS) {
+      const batch = symbols.slice(i, i + MAX_BATCH_SYMBOLS);
 
-        for (const [symbol, quote] of quotes.entries()) {
-          result.set(symbol, this.normalizeQuote(symbol, quote));
+      if ('getQuotes' in adapter && typeof adapter.getQuotes === 'function') {
+        try {
+          const quotes = await (adapter as { getQuotes: (symbols: string[]) => Promise<Map<string, unknown>> })
+            .getQuotes(batch);
+
+          for (const [symbol, quote] of quotes.entries()) {
+            result.set(symbol, this.normalizeQuote(symbol, quote));
+          }
+        } catch (error) {
+          log.error(`Batch quote fetch failed for ${adapter.getBrokerType()}`, error as Error);
+          // Fallback to individual requests for this batch
+          await Promise.all(
+            batch.map(async (symbol) => {
+              const quote = await this.fetchQuote(symbol);
+              if (quote) result.set(symbol, quote);
+            })
+          );
         }
-      } catch (error) {
-        log.error(`Batch quote fetch failed for ${adapter.getBrokerType()}`, error as Error);
-        // Fallback to individual requests
+      } else {
+        // Fallback: fetch individually
         await Promise.all(
-          symbols.map(async (symbol) => {
+          batch.map(async (symbol) => {
             const quote = await this.fetchQuote(symbol);
             if (quote) result.set(symbol, quote);
           })
         );
       }
-    } else {
-      // Fallback: fetch individually
-      await Promise.all(
-        symbols.map(async (symbol) => {
-          const quote = await this.fetchQuote(symbol);
-          if (quote) result.set(symbol, quote);
-        })
-      );
     }
   }
 
@@ -268,11 +303,18 @@ export class BrokerMarketDataProvider extends MarketDataProvider {
   // Cache Management
   // -------------------------------------------------------------------------
 
+  /**
+   * Clear all cached data (both historical and quotes)
+   */
   clearCache(): void {
     this.dataCache.clear();
     this.quoteCache.clear();
   }
 
+  /**
+   * Clear all cached data for a specific symbol
+   * @param symbol - The symbol to clear from cache
+   */
   clearSymbolCache(symbol: string): void {
     for (const key of this.dataCache.keys()) {
       if (key.startsWith(`${symbol}-`)) {
@@ -286,16 +328,30 @@ export class BrokerMarketDataProvider extends MarketDataProvider {
   // Adapter Management
   // -------------------------------------------------------------------------
 
+  /**
+   * Set or update the Tradovate adapter
+   * Clears cache when adapter changes to prevent stale data
+   * @param adapter - The Tradovate adapter instance or null
+   */
   setTradovateAdapter(adapter: BrokerAdapter | null): void {
     this.tradovateAdapter = adapter;
     this.clearCache();
   }
 
+  /**
+   * Set or update the Alpaca adapter
+   * Clears cache when adapter changes to prevent stale data
+   * @param adapter - The Alpaca adapter instance or null
+   */
   setAlpacaAdapter(adapter: BrokerAdapter | null): void {
     this.alpacaAdapter = adapter;
     this.clearCache();
   }
 
+  /**
+   * Get the current adapter instances
+   * @returns Object containing both adapter instances
+   */
   getAdapters(): { tradovate: BrokerAdapter | null; alpaca: BrokerAdapter | null } {
     return {
       tradovate: this.tradovateAdapter,

@@ -14,6 +14,22 @@ import { createLogger } from '../utils/index.js';
 const log = createLogger('WS_HANDLER');
 
 // =============================================================================
+// Constants
+// =============================================================================
+
+/** WebSocket polling interval in milliseconds */
+const POLL_INTERVAL_MS = 2000;
+
+/** Maximum number of messages per second per client (rate limiting) */
+const MAX_MESSAGES_PER_SECOND = 10;
+
+/** Maximum message size in bytes (1MB) to prevent DoS */
+const MAX_MESSAGE_SIZE_BYTES = 1_048_576;
+
+/** Stale client timeout in milliseconds (30 seconds) */
+const STALE_CLIENT_TIMEOUT_MS = 30_000;
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -41,14 +57,14 @@ interface WebSocketEnv {
 export class WebSocketManager {
   private clients = new Map<WebSocket, WSClient>();
   private pollInterval: ReturnType<typeof setInterval> | null = null;
-  private readonly POLL_INTERVAL_MS = 2000; // 2 seconds
+  private messageCounts = new Map<WebSocket, { count: number; resetTime: number }>();
 
-  constructor(private db: D1Database) {}
+  constructor(_db: D1Database) {}
 
   /**
    * Handle incoming WebSocket connection
    */
-  handleWebSocket(request: Request, env: WebSocketEnv): Response {
+  handleWebSocket(_request: Request, env: WebSocketEnv): Response {
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
 
@@ -88,7 +104,7 @@ export class WebSocketManager {
 
     // Handle errors
     server.addEventListener('error', (error) => {
-      log.error('WebSocket error', error as Error);
+      log.error('WebSocket error', error as unknown as Error);
       this.handleDisconnect(server);
     });
 
@@ -104,8 +120,46 @@ export class WebSocketManager {
   private async handleMessage(
     socket: WebSocket,
     data: string,
-    env: WebSocketEnv
+    _env: WebSocketEnv
   ): Promise<void> {
+    // Check message size
+    if (data.length > MAX_MESSAGE_SIZE_BYTES) {
+      this.sendError(socket, 'Message too large');
+      socket.close(1009, 'Message too large');
+      return;
+    }
+
+    // Rate limiting check
+    const now = Date.now();
+    const counts = this.messageCounts.get(socket);
+    if (counts) {
+      // Reset counter if time window has passed
+      if (now > counts.resetTime) {
+        counts.count = 1;
+        counts.resetTime = now + 1000;
+      } else {
+        counts.count++;
+        if (counts.count > MAX_MESSAGES_PER_SECOND) {
+          log.warn('Client exceeded rate limit', { count: counts.count });
+          this.sendError(socket, 'Rate limit exceeded');
+          return;
+        }
+      }
+    } else {
+      this.messageCounts.set(socket, { count: 1, resetTime: now + 1000 });
+    }
+
+    // Check for stale clients
+    const client = this.clients.get(socket);
+    if (!client) return;
+
+    if (now - client.lastPing > STALE_CLIENT_TIMEOUT_MS) {
+      log.warn('Stale client disconnected', { lastPing: client.lastPing });
+      socket.close(1000, 'Stale connection');
+      this.handleDisconnect(socket);
+      return;
+    }
+
     let message: WSMessage;
 
     try {
@@ -114,9 +168,6 @@ export class WebSocketManager {
       this.sendError(socket, 'Invalid JSON message');
       return;
     }
-
-    const client = this.clients.get(socket);
-    if (!client) return;
 
     switch (message.type) {
       case 'ping':
@@ -198,7 +249,7 @@ export class WebSocketManager {
       } catch (error) {
         log.error('Error in WebSocket polling', error as Error);
       }
-    }, this.POLL_INTERVAL_MS);
+    }, POLL_INTERVAL_MS);
 
     log.info('WebSocket polling started');
   }
@@ -294,20 +345,34 @@ export class WebSocketManager {
   /**
    * Broadcast quote updates
    */
-  private async broadcastQuotes(env: WebSocketEnv, symbols: string[]): Promise<void> {
+  private async broadcastQuotes(_env: WebSocketEnv, symbols: string[]): Promise<void> {
     try {
-      // Get latest quotes from database or external API
-      // For now, send a placeholder that would be replaced with real data
+      // Import BrokerMarketDataProvider dynamically to avoid circular dependencies
+      const { getBrokerMarketDataProvider } = await import('../brokers/marketData/BrokerMarketDataProvider.js');
+      const provider = getBrokerMarketDataProvider();
+
+      // Fetch real quotes from the broker
+      const quotesMap = await provider.fetchQuotes(symbols);
       const quotes: Record<string, { last: number; change: number; timestamp: number }> = {};
 
-      for (const symbol of symbols) {
-        // In production, this would fetch from broker API
-        // For now, use cached values or placeholder
+      for (const [symbol, quote] of quotesMap.entries()) {
         quotes[symbol] = {
-          last: 0,
-          change: 0,
-          timestamp: Date.now(),
+          last: quote.last ?? 0,
+          change: quote.change ?? 0,
+          timestamp: quote.timestamp,
         };
+      }
+
+      // Handle any symbols that weren't fetched
+      for (const symbol of symbols) {
+        if (!(symbol in quotes)) {
+          // Use zero values for symbols that couldn't be fetched
+          quotes[symbol] = {
+            last: 0,
+            change: 0,
+            timestamp: Date.now(),
+          };
+        }
       }
 
       // Send to clients who subscribed to these symbols
@@ -344,6 +409,7 @@ export class WebSocketManager {
         remainingClients: this.clients.size - 1,
       });
       this.clients.delete(socket);
+      this.messageCounts.delete(socket);
 
       // Stop polling if no more clients
       if (this.clients.size === 0) {
@@ -404,6 +470,3 @@ export function getWebSocketManager(db: D1Database): WebSocketManager {
   }
   return managers.get(db)!;
 }
-
-// Re-export WebSocketPair for type imports
-export { WebSocketPair };

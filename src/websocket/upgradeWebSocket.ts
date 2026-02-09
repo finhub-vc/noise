@@ -40,12 +40,15 @@ export function isWebSocketUpgrade(request: Request): boolean {
 /**
  * Create a WebSocket upgrade response
  * This is used by the main worker to route WebSocket connections
+ *
+ * Note: Returns Promise<Response> because dynamic import is async.
+ * Cloudflare Workers fetch handler supports both Response and Promise<Response>.
  */
-export function upgradeWebSocket(
+export async function upgradeWebSocket(
   request: Request,
   env: { NOISE_D1_DATABASE: D1Database },
-  ctx: ExecutionContext
-): Response {
+  _ctx: ExecutionContext
+): Promise<Response> {
   const url = new URL(request.url);
 
   log.info('WebSocket upgrade request', {
@@ -54,24 +57,25 @@ export function upgradeWebSocket(
   });
 
   // Import WebSocketManager dynamically to avoid circular dependencies
-  return import('./wsHandler.js').then(({ getWebSocketManager }) => {
+  try {
+    const { getWebSocketManager } = await import('./wsHandler.js');
     const manager = getWebSocketManager(env.NOISE_D1_DATABASE);
     return manager.handleWebSocket(request, env);
-  }).catch((error) => {
-    log.error('Failed to handle WebSocket upgrade', error);
+  } catch (error) {
+    log.error('Failed to handle WebSocket upgrade', error as Error);
     return new Response('WebSocket upgrade failed', { status: 500 });
-  });
+  }
 }
 
 /**
  * Route a request to either the WebSocket handler or regular HTTP handler
  */
-export async function routeWebSocketOrHTTP(
+export function routeWebSocketOrHTTP(
   request: Request,
   env: { NOISE_D1_DATABASE: D1Database },
   ctx: ExecutionContext,
   httpHandler: (request: Request, env: { NOISE_D1_DATABASE: D1Database }, ctx: ExecutionContext) => Promise<Response>
-): Promise<Response> {
+): Response | Promise<Response> {
   if (isWebSocketUpgrade(request)) {
     return upgradeWebSocket(request, env, ctx);
   }
