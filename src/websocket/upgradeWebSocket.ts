@@ -1,6 +1,14 @@
 /**
  * WebSocket Upgrade Helper
  * Handles WebSocket upgrade requests in Cloudflare Workers
+ *
+ * ## Security
+ * - Origin validation is performed to prevent CSRF attacks
+ * - Session validation placeholder for future authentication
+ *
+ * ## Configuration
+ * Use WebSocketManager.addAllowedOrigin(origin) to add allowed origins
+ * in production environments.
  */
 
 import type { WSMessage } from './wsHandler.js';
@@ -26,6 +34,35 @@ export type WebSocketHandler = (
 ) => Promise<Response>;
 
 // =============================================================================
+// Configuration
+// =============================================================================
+
+/**
+ * Allowed origins for WebSocket connections.
+ * In production, set this via environment variable or configuration.
+ * Empty array means allow all origins (development mode).
+ */
+let allowedOrigins: string[] = [];
+
+/**
+ * Set allowed origins for WebSocket connections
+ */
+export function setAllowedOrigins(origins: string[]): void {
+  allowedOrigins = origins;
+  log.info('WebSocket allowed origins updated', { origins });
+}
+
+/**
+ * Add a single allowed origin
+ */
+export function addAllowedOrigin(origin: string): void {
+  if (!allowedOrigins.includes(origin)) {
+    allowedOrigins.push(origin);
+    log.info('WebSocket allowed origin added', { origin });
+  }
+}
+
+// =============================================================================
 // WebSocket Upgrade Utility
 // =============================================================================
 
@@ -38,6 +75,52 @@ export function isWebSocketUpgrade(request: Request): boolean {
 }
 
 /**
+ * Validate request origin for WebSocket connections
+ * Returns true if origin is allowed or in development mode
+ */
+function validateOrigin(request: Request): boolean {
+  const origin = request.headers.get('Origin');
+
+  // No origin header (same-origin request) - allow
+  if (!origin) {
+    return true;
+  }
+
+  // If no allowed origins configured (development mode), allow all
+  if (allowedOrigins.length === 0) {
+    return true;
+  }
+
+  // Check against allowed origins
+  for (const allowed of allowedOrigins) {
+    // Exact match
+    if (origin === allowed) {
+      return true;
+    }
+    // Subdomain match (e.g., *.example.com)
+    if (allowed.startsWith('*.') && origin.endsWith(allowed.slice(1))) {
+      return true;
+    }
+  }
+
+  log.warn('WebSocket connection rejected: invalid origin', { origin });
+  return false;
+}
+
+/**
+ * Validate session for WebSocket connections
+ * TODO: Implement proper session validation once authentication is added
+ * Currently returns true (no authentication required)
+ */
+async function validateSession(_request: Request, _env: { NOISE_D1_DATABASE: D1Database }): Promise<boolean> {
+  // TODO: Implement session validation
+  // 1. Extract session token from cookie or header
+  // 2. Validate against database or JWT
+  // 3. Return true if valid, false otherwise
+  return true;
+}
+
+/**
  * Create a WebSocket upgrade response
  * This is used by the main worker to route WebSocket connections
  *
@@ -47,7 +130,7 @@ export function isWebSocketUpgrade(request: Request): boolean {
 export async function upgradeWebSocket(
   request: Request,
   env: { NOISE_D1_DATABASE: D1Database },
-  _ctx: ExecutionContext
+  ctx: ExecutionContext
 ): Promise<Response> {
   const url = new URL(request.url);
 
@@ -55,6 +138,17 @@ export async function upgradeWebSocket(
     path: url.pathname,
     origin: request.headers.get('Origin'),
   });
+
+  // Validate origin before accepting connection
+  if (!validateOrigin(request)) {
+    return new Response('Invalid origin', { status: 403 });
+  }
+
+  // Validate session (placeholder for future authentication)
+  const sessionValid = await validateSession(request, env);
+  if (!sessionValid) {
+    return new Response('Unauthorized', { status: 401 });
+  }
 
   // Import WebSocketManager dynamically to avoid circular dependencies
   try {

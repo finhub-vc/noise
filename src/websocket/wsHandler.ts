@@ -7,6 +7,21 @@
  * 2. Live market data streaming
  * 3. Signal notifications
  * 4. Risk state changes
+ *
+ * ## WebSocket Protocol
+ *
+ * ### Client → Server Messages
+ * - `{ type: 'ping' }` - Heartbeat ping
+ * - `{ type: 'pong' }` - Heartbeat pong response
+ * - `{ type: 'quotes', data: ['AAPL', 'MSFT'] }` - Subscribe to quote updates
+ *
+ * ### Server → Client Messages
+ * - `{ type: 'positions', data: [...], timestamp: number }` - Position updates
+ * - `{ type: 'signals', data: [...], timestamp: number }` - Signal updates
+ * - `{ type: 'risk', data: {...}, timestamp: number }` - Risk state changes
+ * - `{ type: 'quotes', data: { 'AAPL': {...} }, timestamp: number }` - Quote updates
+ * - `{ type: 'error', error: string, timestamp: number }` - Error message
+ * - `{ type: 'pong', timestamp: number }` - Heartbeat pong response
  */
 
 import { createLogger } from '../utils/index.js';
@@ -29,6 +44,12 @@ const MAX_MESSAGE_SIZE_BYTES = 1_048_576;
 /** Stale client timeout in milliseconds (30 seconds) */
 const STALE_CLIENT_TIMEOUT_MS = 30_000;
 
+/** Debounce delay for subscription changes (ms) */
+const SUBSCRIPTION_DEBOUNCE_MS = 250;
+
+/** Allowed origins for WebSocket connections (empty means all allowed in dev) */
+const ALLOWED_ORIGINS = new Set<string>();
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -43,7 +64,9 @@ export interface WSMessage {
 export interface WSClient {
   socket: WebSocket;
   subscriptions: Set<string>;
+  pendingSubscriptions: Set<string>;
   lastPing: number;
+  subscriptionDebounceTimer: ReturnType<typeof setTimeout> | null;
 }
 
 // =============================================================================
@@ -57,29 +80,77 @@ interface WebSocketEnv {
 export class WebSocketManager {
   private clients = new Map<WebSocket, WSClient>();
   private pollInterval: ReturnType<typeof setInterval> | null = null;
-  private messageCounts = new Map<WebSocket, { count: number; resetTime: number }>();
+  // Use WeakMap for message counts to prevent memory leaks
+  private messageCounts = new WeakMap<WebSocket, { count: number; resetTime: number }>();
+  // Track subscription flush timer
+  private subscriptionFlushTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(_db: D1Database) {}
+  constructor(_db: D1Database) {
+    // Start periodic subscription flush for debounced updates
+    this.startSubscriptionFlush();
+  }
+
+  /**
+   * Validate origin for WebSocket connection
+   */
+  private validateOrigin(request: Request): boolean {
+    const origin = request.headers.get('Origin');
+
+    // In development, allow all origins
+    if (ALLOWED_ORIGINS.size === 0) {
+      return true;
+    }
+
+    // In production, check against allowed origins
+    if (!origin) {
+      return false;
+    }
+
+    // Check exact match or subdomain match
+    for (const allowed of ALLOWED_ORIGINS) {
+      if (origin === allowed || origin.endsWith(`.${allowed}`)) {
+        return true;
+      }
+    }
+
+    log.warn('WebSocket connection rejected: invalid origin', { origin });
+    return false;
+  }
+
+  /**
+   * Add allowed origin for WebSocket connections
+   */
+  static addAllowedOrigin(origin: string): void {
+    ALLOWED_ORIGINS.add(origin);
+  }
 
   /**
    * Handle incoming WebSocket connection
    */
-  handleWebSocket(_request: Request, env: WebSocketEnv): Response {
+  handleWebSocket(request: Request, env: WebSocketEnv): Response {
+    // Validate origin before accepting connection
+    if (!this.validateOrigin(request)) {
+      return new Response('Invalid origin', { status: 403 });
+    }
+
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
 
     // Accept the WebSocket connection
     server.accept();
 
-    // Create client entry
+    // Create client entry with pending subscriptions for debouncing
     this.clients.set(server, {
       socket: server,
       subscriptions: new Set(),
+      pendingSubscriptions: new Set(),
       lastPing: Date.now(),
+      subscriptionDebounceTimer: null,
     });
 
     log.info('WebSocket client connected', {
       clientCount: this.clients.size,
+      origin: request.headers.get('Origin'),
     });
 
     // Start polling if this is the first client
@@ -131,22 +202,23 @@ export class WebSocketManager {
 
     // Rate limiting check
     const now = Date.now();
-    const counts = this.messageCounts.get(socket);
-    if (counts) {
-      // Reset counter if time window has passed
-      if (now > counts.resetTime) {
-        counts.count = 1;
-        counts.resetTime = now + 1000;
-      } else {
-        counts.count++;
-        if (counts.count > MAX_MESSAGES_PER_SECOND) {
-          log.warn('Client exceeded rate limit', { count: counts.count });
-          this.sendError(socket, 'Rate limit exceeded');
-          return;
-        }
-      }
+    let counts = this.messageCounts.get(socket);
+    if (!counts) {
+      counts = { count: 0, resetTime: now + 1000 };
+      this.messageCounts.set(socket, counts);
+    }
+
+    // Reset counter if time window has passed
+    if (now > counts.resetTime) {
+      counts.count = 1;
+      counts.resetTime = now + 1000;
     } else {
-      this.messageCounts.set(socket, { count: 1, resetTime: now + 1000 });
+      counts.count++;
+      if (counts.count > MAX_MESSAGES_PER_SECOND) {
+        log.warn('Client exceeded rate limit', { count: counts.count });
+        this.sendError(socket, 'Rate limit exceeded');
+        return;
+      }
     }
 
     // Check for stale clients
@@ -180,18 +252,80 @@ export class WebSocketManager {
         break;
 
       case 'quotes':
-        // Subscribe to specific symbols
+        // Subscribe to specific symbols (debounced)
         if (Array.isArray(message.data)) {
           const symbols = message.data as string[];
           for (const symbol of symbols) {
-            client.subscriptions.add(symbol);
+            client.pendingSubscriptions.add(symbol);
           }
-          log.debug('Client subscribed to quotes', { symbols, clientCount: this.clients.size });
+          this.scheduleSubscriptionFlush(socket, client);
+          log.debug('Client pending quote subscriptions', { symbols, clientCount: this.clients.size });
         }
         break;
 
       default:
         log.warn('Unknown WebSocket message type', { type: message.type });
+    }
+  }
+
+  /**
+   * Schedule a subscription flush for debouncing
+   */
+  private scheduleSubscriptionFlush(socket: WebSocket, client: WSClient): void {
+    // Clear existing timer
+    if (client.subscriptionDebounceTimer) {
+      clearTimeout(client.subscriptionDebounceTimer);
+    }
+
+    // Schedule new flush
+    client.subscriptionDebounceTimer = setTimeout(() => {
+      this.flushSubscriptions(socket, client);
+    }, SUBSCRIPTION_DEBOUNCE_MS);
+  }
+
+  /**
+   * Flush pending subscriptions to active subscriptions
+   */
+  private flushSubscriptions(socket: WebSocket, client: WSClient): void {
+    if (client.pendingSubscriptions.size === 0) {
+      return;
+    }
+
+    // Add all pending subscriptions
+    for (const symbol of client.pendingSubscriptions) {
+      client.subscriptions.add(symbol);
+    }
+
+    log.debug('Client subscriptions flushed', {
+      symbols: Array.from(client.subscriptions),
+      clientCount: this.clients.size,
+    });
+
+    // Clear pending
+    client.pendingSubscriptions.clear();
+    client.subscriptionDebounceTimer = null;
+  }
+
+  /**
+   * Start periodic subscription flush (safety net)
+   */
+  private startSubscriptionFlush(): void {
+    this.subscriptionFlushTimer = setInterval(() => {
+      for (const [socket, client] of this.clients.entries()) {
+        if (client.pendingSubscriptions.size > 0) {
+          this.flushSubscriptions(socket, client);
+        }
+      }
+    }, SUBSCRIPTION_DEBOUNCE_MS * 2);
+  }
+
+  /**
+   * Stop periodic subscription flush
+   */
+  private stopSubscriptionFlush(): void {
+    if (this.subscriptionFlushTimer) {
+      clearInterval(this.subscriptionFlushTimer);
+      this.subscriptionFlushTimer = null;
     }
   }
 
@@ -343,7 +477,7 @@ export class WebSocketManager {
   }
 
   /**
-   * Broadcast quote updates
+   * Broadcast quote updates (optimized)
    */
   private async broadcastQuotes(_env: WebSocketEnv, symbols: string[]): Promise<void> {
     try {
@@ -353,45 +487,44 @@ export class WebSocketManager {
 
       // Fetch real quotes from the broker
       const quotesMap = await provider.fetchQuotes(symbols);
-      const quotes: Record<string, { last: number; change: number; timestamp: number }> = {};
 
-      for (const [symbol, quote] of quotesMap.entries()) {
-        quotes[symbol] = {
-          last: quote.last ?? 0,
-          change: quote.change ?? 0,
-          timestamp: quote.timestamp,
-        };
-      }
-
-      // Handle any symbols that weren't fetched
+      // Build optimized quote data with default values for missing symbols
+      const quotes = new Map<string, { last: number; change: number; timestamp: number }>();
       for (const symbol of symbols) {
-        if (!(symbol in quotes)) {
-          // Use zero values for symbols that couldn't be fetched
-          quotes[symbol] = {
-            last: 0,
-            change: 0,
-            timestamp: Date.now(),
-          };
-        }
+        const quote = quotesMap.get(symbol);
+        quotes.set(symbol, {
+          last: quote?.last ?? 0,
+          change: quote?.change ?? 0,
+          timestamp: quote?.timestamp ?? Date.now(),
+        });
       }
 
-      // Send to clients who subscribed to these symbols
+      // Build client-to-symbols mapping for efficient broadcasting
+      const clientQuoteMap = new Map<WebSocket, Record<string, unknown>>();
+
       for (const [socket, client] of this.clients.entries()) {
         const clientQuotes: Record<string, unknown> = {};
 
-        for (const symbol of symbols) {
-          if (client.subscriptions.has(symbol)) {
-            clientQuotes[symbol] = quotes[symbol];
+        // Only iterate over client's subscriptions, not all symbols
+        for (const symbol of client.subscriptions) {
+          const quoteData = quotes.get(symbol);
+          if (quoteData) {
+            clientQuotes[symbol] = quoteData;
           }
         }
 
         if (Object.keys(clientQuotes).length > 0) {
-          this.sendMessage(socket, {
-            type: 'quotes',
-            data: clientQuotes,
-            timestamp: Date.now(),
-          });
+          clientQuoteMap.set(socket, clientQuotes);
         }
+      }
+
+      // Send to clients in a single pass
+      for (const [socket, clientQuotes] of clientQuoteMap.entries()) {
+        this.sendMessage(socket, {
+          type: 'quotes',
+          data: clientQuotes,
+          timestamp: Date.now(),
+        });
       }
     } catch (error) {
       log.error('Error broadcasting quotes', error as Error);
@@ -408,12 +541,21 @@ export class WebSocketManager {
         subscriptions: Array.from(client.subscriptions),
         remainingClients: this.clients.size - 1,
       });
+
+      // Clear debounce timer
+      if (client.subscriptionDebounceTimer) {
+        clearTimeout(client.subscriptionDebounceTimer);
+        client.subscriptionDebounceTimer = null;
+      }
+
       this.clients.delete(socket);
-      this.messageCounts.delete(socket);
+      // Note: messageCounts is a WeakMap, so entries are automatically garbage collected
+      // when the socket is no longer referenced elsewhere
 
       // Stop polling if no more clients
       if (this.clients.size === 0) {
         this.stopPolling();
+        this.stopSubscriptionFlush();
       }
     }
   }

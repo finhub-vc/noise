@@ -5,7 +5,7 @@
 
 import type { OHLCV, Quote, MarketDataOptions } from '../../signals/marketData/MarketDataProvider.js';
 import { MarketDataProvider } from '../../signals/marketData/MarketDataProvider.js';
-import type { BrokerAdapter } from '../interfaces.js';
+import type { BrokerAdapter, MarketDataCapable, isMarketDataCapable } from '../interfaces.js';
 import { createLogger } from '../../utils/index.js';
 
 const log = createLogger('BROKER_MD_PROVIDER');
@@ -119,10 +119,10 @@ export class BrokerMarketDataProvider extends MarketDataProvider {
     minutes: number,
     limit: number
   ): Promise<unknown[]> {
-    // Check if adapter has market data methods
-    if ('getHistoricalData' in adapter && typeof adapter.getHistoricalData === 'function') {
-      return await (adapter as { getHistoricalData: (s: string, tf: number, l: number) => Promise<unknown[]> })
-        .getHistoricalData(symbol, minutes, limit);
+    // Type-safe check for market data capability
+    const isCapable = (await import('../interfaces.js')).isMarketDataCapable;
+    if (isCapable(adapter)) {
+      return await adapter.getHistoricalData(symbol, minutes, limit);
     }
 
     throw new Error(`Adapter ${adapter.getBrokerType()} does not support historical data`);
@@ -239,14 +239,16 @@ export class BrokerMarketDataProvider extends MarketDataProvider {
   ): Promise<void> {
     if (!adapter || symbols.length === 0) return;
 
+    // Type-safe check for market data capability
+    const isCapable = (await import('../interfaces.js')).isMarketDataCapable;
+
     // Process in batches to prevent overwhelming the API
     for (let i = 0; i < symbols.length; i += MAX_BATCH_SYMBOLS) {
       const batch = symbols.slice(i, i + MAX_BATCH_SYMBOLS);
 
-      if ('getQuotes' in adapter && typeof adapter.getQuotes === 'function') {
+      if (isCapable(adapter)) {
         try {
-          const quotes = await (adapter as { getQuotes: (symbols: string[]) => Promise<Map<string, unknown>> })
-            .getQuotes(batch);
+          const quotes = await adapter.getQuotes(batch);
 
           for (const [symbol, quote] of quotes.entries()) {
             result.set(symbol, this.normalizeQuote(symbol, quote));
@@ -274,10 +276,12 @@ export class BrokerMarketDataProvider extends MarketDataProvider {
   }
 
   private async fetchQuoteFromAdapter(adapter: BrokerAdapter, symbol: string): Promise<unknown | null> {
-    if ('getQuote' in adapter && typeof adapter.getQuote === 'function') {
-      return await (adapter as { getQuote: (symbol: string) => Promise<unknown> })
-        .getQuote(symbol);
+    // Type-safe check for market data capability
+    const isCapable = (await import('../interfaces.js')).isMarketDataCapable;
+    if (isCapable(adapter)) {
+      return await adapter.getQuote(symbol);
     }
+    // Fallback to legacy getMarketData method
     if ('getMarketData' in adapter && typeof adapter.getMarketData === 'function') {
       return await (adapter as { getMarketData: (symbol: string) => Promise<unknown | null> })
         .getMarketData(symbol);

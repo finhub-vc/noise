@@ -61,10 +61,22 @@ export function useWebSocket(config: WebSocketConfig = {}) {
       return;
     }
 
-    // Clear any existing reconnection timer
+    // Clear any existing reconnection timer before starting new connection
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
+    }
+
+    // Clear existing WebSocket if any
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
+    // Clear existing polling if any
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
     }
 
     setStatus({ connected: false, connecting: true, error: null, mode: 'disconnected' });
@@ -138,7 +150,15 @@ export function useWebSocket(config: WebSocketConfig = {}) {
   // Start HTTP polling
   const startPolling = useCallback(() => {
     if (pollingIntervalRef.current) {
-      return; // Already polling
+      // Already polling, clear existing to prevent duplicates
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    // Clear any existing WebSocket
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
     }
 
     console.log('[useWebSocket] Using HTTP polling fallback');

@@ -270,17 +270,20 @@ export class AlpacaAdapter implements BrokerAdapter {
 
   /**
    * Fetch current quote for a symbol
+   * @returns Quote data or null if symbol not found or fetch fails
    */
   async getQuote(symbol: string): Promise<AlpacaQuote | null> {
     try {
       const response = await this.fetchWithAuth(`/v2/stocks/${symbol}/quotes/latest`);
 
       if (!response.ok) {
+        // Always return null on error for consistent behavior
         if (response.status === 404) {
           log.warn(`Symbol not found: ${symbol}`);
-          return null;
+        } else {
+          log.error(`Failed to get quote for ${symbol}: ${response.status}`);
         }
-        throw new BrokerError(`Failed to get quote: ${response.status}`);
+        return null;
       }
 
       const data = await response.json() as { quote: AlpacaQuote };
